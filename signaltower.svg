@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="svg5332"
+   viewBox="0 0 256.00007 256.00002"
+   height="72.248894mm"
+   width="72.248909mm"
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="signaltower.svg">
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="640"
+     inkscape:window-height="480"
+     id="namedview8"
+     showgrid="false"
+     inkscape:zoom="0.92187494"
+     inkscape:cx="128.00004"
+     inkscape:cy="128.00001"
+     inkscape:window-x="10"
+     inkscape:window-y="34"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg5332" />
+  <title
+     id="title7024">Signal Tower</title>
+  <defs
+     id="defs5334" />
+  <metadata
+     id="metadata5337">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title>Signal Tower</dc:title>
+        <cc:license
+           rdf:resource="http://creativecommons.org/publicdomain/zero/1.0/" />
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Josh &quot;Cheeseness&quot; Bush</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:description>Originally created for the official shirt for the 2014 Open Source Developers' Conference held at Griffith University.</dc:description>
+        <dc:subject>
+          <rdf:Bag>
+            <rdf:li>signal tower radio transmission transmit</rdf:li>
+          </rdf:Bag>
+        </dc:subject>
+        <dc:date>2014-10-22</dc:date>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/publicdomain/zero/1.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+  <g
+     transform="translate(-362.5464,-406.21469)"
+     id="layer1"
+     style="fill:#000000">
+    <path
+       id="path4646"
+       d="m 451.30384,406.21604 a 3.1662402,3.1662402 0 0 0 -2.1765,0.95835 c -10.8717,10.8717 -17.1555,26.04305 -17.1555,41.41805 0,15.37483 6.2838,30.54739 17.1555,41.41926 a 3.1662402,3.1662402 0 1 0 4.4779,-4.47689 c -9.6429,-9.64296 -15.3014,-23.30526 -15.3014,-36.94237 0,-13.63711 5.6585,-27.2982 15.3014,-36.94116 a 3.1662402,3.1662402 0 0 0 -2.3014,-5.43524 z m 78.484,0 a 3.1662402,3.1662402 0 0 0 -2.3002,5.43524 c 9.6429,9.64296 15.3015,23.30405 15.3015,36.94116 0,13.63711 -5.6586,27.29941 -15.3015,36.94237 a 3.1662402,3.1662402 0 1 0 4.4781,4.47689 c 10.8717,-10.87187 17.1553,-26.04443 17.1553,-41.41926 0,-15.375 -6.2836,-30.54635 -17.1553,-41.41805 a 3.1662402,3.1662402 0 0 0 -2.1767,-0.95835 3.1662402,3.1662402 0 0 1 -10e-4,0 z m -64.0357,14.44828 a 3.1662402,3.1662402 0 0 0 -2.1767,0.95835 c -7.0892,7.0892 -11.1709,16.94399 -11.1709,26.96977 0,10.0256 4.0817,19.88178 11.1709,26.97098 a 3.1662402,3.1662402 0 1 0 4.4781,-4.47689 c -5.8604,-5.86046 -9.3171,-14.20621 -9.3171,-22.49409 0,-8.28806 3.4567,-16.63242 9.3171,-22.49288 a 3.1662402,3.1662402 0 0 0 -2.3014,-5.43524 z m 49.5874,0 a 3.1662402,3.1662402 0 0 0 -2.3002,5.43524 c 5.8604,5.86046 9.3173,14.20482 9.3173,22.49288 0,8.28788 -3.4569,16.63363 -9.3173,22.49409 a 3.1662402,3.1662402 0 1 0 4.4781,4.47689 c 7.0892,-7.0892 11.1709,-16.94538 11.1709,-26.97098 0,-10.02578 -4.0817,-19.88057 -11.1709,-26.96977 a 3.1662402,3.1662402 0 0 0 -2.1767,-0.95835 3.1662402,3.1662402 0 0 1 -10e-4,0 z m -24.7931,12.22712 c -4.1507,0 -8.168,1.66421 -11.103,4.59922 -2.935,2.93501 -4.598,6.95106 -4.598,11.10178 0,4.15054 1.663,8.16815 4.598,11.10299 0.6678,0.66781 1.3942,1.26523 2.163,1.7968 l -52.7089,196.71395 a 3.1662401,3.1662401 0 1 0 6.1166,1.63867 l 0.1904,-0.71108 55.3419,-55.34066 55.3419,55.34066 0.1904,0.71108 a 3.1662401,3.1662401 0 1 0 6.1166,-1.63867 l -52.7088,-196.71395 c 0.7687,-0.53157 1.4951,-1.12899 2.1629,-1.7968 2.935,-2.93484 4.598,-6.95245 4.598,-11.10299 0,-4.15072 -1.663,-8.16677 -4.598,-11.10178 -2.935,-2.93501 -6.9523,-4.59922 -11.103,-4.59922 z m 0,6.33173 c 2.413,0 4.9188,1.03812 6.6249,2.74421 1.7063,1.70627 2.7442,4.21206 2.7442,6.62506 0,2.41282 -1.0379,4.92001 -2.7442,6.6261 -1.7061,1.70627 -4.2119,2.74421 -6.6249,2.74421 -2.413,0 -4.9188,-1.03794 -6.6249,-2.74421 -1.7062,-1.70609 -2.7442,-4.21328 -2.7442,-6.6261 0,-2.413 1.038,-4.91879 2.7442,-6.62506 1.7061,-1.70609 4.2119,-2.74421 6.6249,-2.74421 z m -3.0533,24.76982 c 0.9998,0.19914 2.0225,0.30166 3.0533,0.30166 1.0313,0 2.0543,-0.10252 3.0546,-0.30166 l 0.1685,0.6294 -3.224,3.22399 -3.2227,-3.22278 0.1685,-0.63061 z m 7.6958,5.92614 0.9411,3.51089 -2.226,-2.22602 1.2849,-1.28487 z m -9.2838,0 1.2837,1.28366 -2.2236,2.22358 0.9399,-3.50724 z m 4.6413,4.6425 7.9322,7.93095 -7.9322,7.932 -7.9322,-7.932 7.9322,-7.93095 z m 9.4138,13.16462 4.4334,16.54553 -10.4896,-10.48957 6.0562,-6.05596 z m -18.8262,0 6.0548,6.05474 -10.4884,10.48836 4.4336,-16.5431 z m 9.4124,9.41358 16.1957,16.19573 -16.1957,16.19572 -16.1957,-16.19572 16.1957,-16.19573 z m 17.6785,21.42939 10.4821,39.12269 -24.803,-24.803 14.3209,-14.31969 z m -35.3556,0 14.3195,14.3183 -24.8018,24.80179 10.4823,-39.12009 z m 17.6771,17.67835 30.4152,30.41393 -30.4152,30.41515 -30.4151,-30.41515 30.4151,-30.41393 z m 31.9523,35.59321 20.9311,78.11922 -49.5258,-49.52573 28.5947,-28.59349 z m -63.9034,0 28.5935,28.59228 -49.5257,49.52572 20.9322,-78.118 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:normal;word-spacing:normal;text-transform:none;direction:ltr;block-progression:tb;writing-mode:lr-tb;baseline-shift:baseline;text-anchor:start;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;color-interpolation:sRGB;color-interpolation-filters:linearRGB;fill:#000000;fill-opacity:1;stroke:none;stroke-width:10;marker:none;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate" />
+  </g>
+</svg>
