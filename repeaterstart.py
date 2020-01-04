@@ -134,6 +134,7 @@ class UI(Gtk.Window):
         self.unit = 'mi' #or km
         self.renderedLat = None
         self.renderedLon = None
+        self.mainScreen = Gdk.Screen.get_default()
 
         if 0:
             self.osm = DummyMapNoGpsPoint()
@@ -174,10 +175,6 @@ class UI(Gtk.Window):
 
         self.latlon_entry = Gtk.Entry()
 
-        zoom_in_button = Gtk.Button(stock=Gtk.STOCK_ZOOM_IN)
-        zoom_in_button.connect('clicked', self.zoom_in_clicked)
-        zoom_out_button = Gtk.Button(stock=Gtk.STOCK_ZOOM_OUT)
-        zoom_out_button.connect('clicked', self.zoom_out_clicked)
         home_button = Gtk.Button(stock=Gtk.STOCK_HOME)
         home_button.connect('clicked', self.home_clicked)
         cache_button = Gtk.Button('Cache')
@@ -185,8 +182,6 @@ class UI(Gtk.Window):
 
         self.vbox.pack_start(self.osm, True, True, 0)
         hbox = Gtk.HBox(False, 0)
-        hbox.pack_start(zoom_in_button, False, True, 0)
-        hbox.pack_start(zoom_out_button, False, True, 0)
         hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(cache_button, False, True, 0)
 
@@ -234,15 +229,6 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         vb.pack_start(gobtn, False, True, 0)
 
         self.show_tooltips = False
-        cb = Gtk.CheckButton("Show Location in Tooltips")
-        cb.props.active = self.show_tooltips
-        cb.connect("toggled", self.on_show_tooltips_toggled)
-        self.vbox.pack_end(cb, False, True, 0)
-
-        cb = Gtk.CheckButton("Disable Cache")
-        cb.props.active = False
-        cb.connect("toggled", self.disable_cache_toggled)
-        self.vbox.pack_end(cb, False, True, 0)
 
         self.vbox.pack_end(ex, False, True, 0)
         self.vbox.pack_end(self.latlon_entry, False, True, 0)
@@ -257,7 +243,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         #listbox.set_selection_mode(Gtk.SelectionMode.NONE)
 
         scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.add(self.listbox)
         self.vbox.pack_start(scrolled, True, True, 0)
         self.GTKListRows = []
@@ -362,10 +348,11 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.renderedLon = self.osm.props.longitude
 
             t = time.time()
+            text = 'Map Center: latitude %s longitude %s' if self.mainScreen.get_width() > 800 else 'lat: %s lon: %s'
             self.latlon_entry.set_text(
-                'Map Center: latitude %s longitude %s' % (
-                    self.osm.props.latitude,
-                    self.osm.props.longitude
+                text % (
+                    round(self.osm.props.latitude, 4),
+                    round(self.osm.props.longitude, 4)
                 )
             )
             # cursor lat,lon = self.osm.get_event_location(event).get_degrees()
@@ -383,15 +370,17 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     
     def addToList(self, repeater, lat, lon):
         row = Gtk.ListBoxRow()
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         row.add(hbox)
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         hbox.pack_start(vbox, True, True, 0)
         innerhbox = Gtk.HBox()
         if float(repeater.freq) == 0:
-            label1 = Gtk.Label("Node %s Reflector %s" % (repeater.node, repeater.callsign), xalign=0)
+            lbltext = "%s Reflector %s" if self.mainScreen.get_width() < 800 else "Node %s Reflector %s"
+            label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign), xalign=0)
         else:
-            label1 = Gtk.Label("Node %s, %s at %smhz" % (repeater.node, repeater.callsign, repeater.freq), xalign=0)
+            lbltext = "%s, %s at %smhz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %smhz"
+            label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign, repeater.freq), xalign=0)
         try:
             int(repeater.status)
             for item in self.irlps:
@@ -406,12 +395,25 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 label2 = Gtk.Label(repeater.city, xalign=0)
             else:
                 label2 = Gtk.Label("%s. PL %s, Offset %s, %s" % (repeater.status, repeater.pl, repeater.offset, repeater.url), xalign=0)
+        
         if float(repeater.freq) == 0:
             label3 = Gtk.Label("Owned by %s" % (repeater.owner,), xalign=0)
         else:
             label3 = Gtk.Label("Owned by %s in %s" % (repeater.owner, repeater.city), xalign=0)
         innerhbox.pack_start(label2, True, True, 0)
-        label1.modify_font(Pango.font_description_from_string("Ubuntu Bold 22"))
+        
+        label1.set_ellipsize(Pango.EllipsizeMode.END)
+        label2.set_ellipsize(Pango.EllipsizeMode.END)
+        label3.set_ellipsize(Pango.EllipsizeMode.END)
+        if True or self.mainScreen.get_width() < 800:
+            label2.modify_font(Pango.font_description_from_string("Ubuntu 10"))
+            label3.modify_font(Pango.font_description_from_string("Ubuntu 10"))
+        
+        if self.mainScreen.get_width() < 800:
+            #mobile
+            label1.modify_font(Pango.font_description_from_string("Ubuntu Bold 12"))
+        else:
+            label1.modify_font(Pango.font_description_from_string("Ubuntu Bold 22"))
         vbox.pack_start(label1, True, True, 5)
         vbox.pack_start(innerhbox, True, True, 0)
         vbox.pack_start(label3, True, True, 5)
