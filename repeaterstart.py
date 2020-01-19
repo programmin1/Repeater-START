@@ -27,6 +27,8 @@ from gi.repository import GObject
 from gi.repository import Pango
 import time
 from gi.repository import cairo
+
+from gi.repository import Geoclue
 import math
 import shutil
 import urllib.request
@@ -175,14 +177,23 @@ class UI(Gtk.Window):
 
         self.latlon_entry = Gtk.Entry()
 
-        home_button = Gtk.Button(stock=Gtk.STOCK_HOME)
+        home_button = Gtk.Button()
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('locateme.svg',width=21,height=21,preserve_aspect_ratio=True)
+        GoImg = Gtk.Image.new_from_pixbuf(pixbuf)
+        home_button.set_image(GoImg)
+        home_button.set_tooltip_text('Find my location')
+        
         home_button.connect('clicked', self.home_clicked)
+        back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
+        back_button.connect('clicked', self.back_clicked)
+        
         cache_button = Gtk.Button('Cache')
         cache_button.connect('clicked', self.cache_clicked)
 
         self.vbox.pack_start(self.osm, True, True, 0)
         hbox = Gtk.HBox(False, 0)
         hbox.pack_start(home_button, False, True, 0)
+        hbox.pack_start(back_button, False, True, 0)
         hbox.pack_start(cache_button, False, True, 0)
 
         #add ability to test custom map URIs
@@ -315,7 +326,18 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.osm.set_zoom(self.osm.props.zoom - 1)
 
     def home_clicked(self, button):
-        self.osm.set_center_and_zoom(-44.39, 171.25, 12)
+        #self.getlocation() #Freezes up, odd.
+        GObject.timeout_add(1, self.getlocation)
+        
+    def back_clicked(self, button):
+        self.osm.set_center_and_zoom(self.lastLat, self.lastLon, 12)
+        
+    def getlocation(self):
+        self.lastLat = self.osm.props.latitude
+        self.lastLon = self.osm.props.longitude
+        clue = Geoclue.Simple.new_sync('repeaterstart',Geoclue.AccuracyLevel.EXACT,None)
+        location = clue.get_location()
+        self.osm.set_center_and_zoom(location.get_property('latitude'), location.get_property('longitude'), 12)
 
     def on_query_tooltip(self, widget, x, y, keyboard_tip, tooltip, data=None):
         if keyboard_tip:
