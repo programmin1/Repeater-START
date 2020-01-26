@@ -20,6 +20,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 import sys
 import os.path
 import random
+import subprocess
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GdkPixbuf
@@ -64,6 +65,22 @@ class IRLPNode:
         a = sin(dlat/2)**2 + cos(radians(self.lat)) * cos(radians(lat)) * sin(dlon/2)**2
         c = 2*atan2(sqrt(a), sqrt(1-a))
         return earthR*c
+        
+class RTLSDRRun(Thread):
+    def __init__(self, cmd):
+        Thread.__init__(self)
+        self.cmd = cmd
+        
+    def run(self):
+        #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
+        cmds = self.cmd.split('|')
+        self.proc = subprocess.Popen(cmds[0].split(),
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+        subprocess.check_output(cmds[1].split(),stdin=self.proc.stdout)
+        for line in iter(self.proc.stdout.readline, b''):
+            line = line.decode('utf-8')
+            #print(line)
 
 class BackgroundDownload(Thread):
     def __init__(self, url, filename):
@@ -128,14 +145,18 @@ class UI(Gtk.Window):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
 
         self.set_default_size(500, 500)
-        self.connect('destroy', lambda x: Gtk.main_quit())
+        self.connect('destroy', self.cleanup)
         self.set_title('RepeaterSTART GPS Mapper')
-
         self.vbox = Gtk.VBox(False, 0)
         self.add(self.vbox)
         self.unit = 'mi' #or km
         self.renderedLat = None
         self.renderedLon = None
+        
+        self.rtllistener = None
+        self.playingfreq = None
+        self.PLAYSIZE = Gtk.IconSize.BUTTON
+        
         self.mainScreen = Gdk.Screen.get_default()
 
         if 0:
@@ -258,6 +279,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         scrolled.add(self.listbox)
         self.vbox.pack_start(scrolled, True, True, 0)
         self.GTKListRows = []
+        self.playBtns = []
 
 
     def displayNodes(self):
@@ -383,6 +405,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.irlps = sorted(self.irlps, key = lambda repeater : repeater.distance(lat,lon))
             for r in self.GTKListRows:
                 r.destroy()
+            self.playBtns = []
+            # clear the list, not also destroy - or list messes after moving around.
+            #for b in self.playBtns:
+            #    b.destroy()
             for item in self.irlps:
                 distance = item.distance(lat,lon)
                 if( distance < maxkm):
@@ -442,11 +468,39 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         km = repeater.distance(lat,lon)
         if self.unit == 'mi':
             km = km*.62137119
-        distlbl = Gtk.Label( '%s %s ' % ( int(km*10)/10, self.unit ))
-        hbox.pack_start(distlbl, False, True, 0)
         
+        distlbl = Gtk.Label( '%s %s ' % ( int(km*10)/10, self.unit ))
+        playbtn = Gtk.Button(stock=Gtk.STOCK_MEDIA_PLAY)
+        playbtn.set_label('')
+        playbtn.selFrequency = repeater.freq
+        if repeater.freq == self.playingfreq:
+            playbtn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_STOP, self.PLAYSIZE))
+        else:
+            playbtn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_PLAY, self.PLAYSIZE))
+        playbtn.connect('clicked', self.playpause)
+        rightbox = Gtk.VBox()
+        rightbox.pack_start(distlbl, False, True, 10)
+        rightbox.pack_start(playbtn, True, True, 0)
+        hbox.pack_start(rightbox, False, True, 0)
+        
+        #These two arrays should correspond!
         self.GTKListRows.append(row)
+        self.playBtns.append(playbtn)
         self.listbox.add(row)
+        
+    def playpause(self, btn):
+        if btn.selFrequency != self.playingfreq:
+            self.playRTLSDR(btn.selFrequency)
+            self.playingfreq = btn.selFrequency
+            for b in self.playBtns:
+                b.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_PLAY, self.PLAYSIZE))
+            #All others are stopped.
+            btn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_STOP, self.PLAYSIZE))
+        else:
+            if self.rtllistener:
+                self.rtllistener.proc.kill()
+            self.playingfreq = None
+            btn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_PLAY, self.PLAYSIZE))
 
     def goLinkIRLP(self, btn):
         label = btn.get_label()
@@ -510,6 +564,21 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             if right:
                 pass
 
+
+    def playRTLSDR(self, mhz):
+        if self.rtllistener:
+            self.rtllistener.proc.kill()
+        # -l 450 is higher squelch.
+        cmd = 'rtl_fm -M fm -f '+mhz+'M -l 450 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
+        print(cmd)
+        self.rtllistener = RTLSDRRun( cmd )
+        self.rtllistener.start()
+            
+    def cleanup(self, obj):
+        if self.rtllistener:
+            self.rtllistener.proc.kill()
+        Gtk.main_quit()
+    
 
 if __name__ == "__main__":
     u = UI()
