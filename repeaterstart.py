@@ -21,6 +21,7 @@ import sys
 import os.path
 import random
 import subprocess
+import json
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GdkPixbuf
@@ -34,6 +35,9 @@ import math
 import shutil
 import urllib.request
 from math import pi, sin, cos, sqrt, atan2, radians
+
+from IRLPNode import IRLPNode
+from HearHamRepeater import HearHamRepeater
 
 GObject.threads_init()
 Gdk.threads_init()
@@ -50,21 +54,6 @@ class DummyMapNoGpsPoint(osmgpsmap.Map):
         pass
 GObject.type_register(DummyMapNoGpsPoint)
 
-class IRLPNode:
-    def __init__(self, line):
-        """ Unpack the line to the properties of this class: """
-        [self.node, self.callsign, self.city, self.state, self.country, self.status, self.record, self.install, self.lat, self.lon, self.lastupdate, self.freq, self.offset, self.pl, self.owner, self.url, self.lastchange, self.avrsstatus] = line.split('\t')
-        self.lat = float(self.lat)
-        self.lon = float(self.lon)
-    
-    def distance(self, lat,lon):
-        """ Distance in km """
-        earthR = 6373
-        dlat = radians(lat-self.lat)
-        dlon = radians(lon-self.lon)
-        a = sin(dlat/2)**2 + cos(radians(self.lat)) * cos(radians(lat)) * sin(dlon/2)**2
-        c = 2*atan2(sqrt(a), sqrt(1-a))
-        return earthR*c
         
 class RTLSDRRun(Thread):
     def __init__(self, cmd):
@@ -218,7 +207,7 @@ class UI(Gtk.Window):
         hbox.pack_start(cache_button, False, True, 0)
 
         #add ability to test custom map URIs
-        ex = Gtk.Expander(label="<b>Map Repository URI</b>")
+        ex = Gtk.Expander(label="<b>Display Options</b>")
         ex.props.use_markup = True
         vb = Gtk.VBox()
         self.repouri_entry = Gtk.Entry()
@@ -226,6 +215,7 @@ class UI(Gtk.Window):
         self.image_format_entry = Gtk.Entry()
         self.image_format_entry.set_text(self.osm.props.image_format)
 
+        
         lbl = Gtk.Label(
 """
 Enter an repository URL to fetch map tiles from in the box below. Special metacharacters may be included in this url
@@ -257,7 +247,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         vb.pack_start(hb, False, True, 0)
 
         gobtn = Gtk.Button("Load Map URI")
-        gobtn.connect("clicked", self.load_map_clicked)
+        #gobtn.connect("clicked", self.load_map_clicked)
         vb.pack_start(gobtn, False, True, 0)
 
         self.show_tooltips = False
@@ -285,15 +275,21 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def displayNodes(self):
         self.osm.image_remove_all()
         with open('nohtmlstatus.txt') as repfile:
-            self.irlps = []
+            self.allrepeaters = []
             for line in repfile:
                 try:
-                    values = IRLPNode(line)
-                    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
-                    self.osm.image_add(values.lat, values.lon, pixbuf)
-                    self.irlps.append(values)
+                    self.addRepeaterIcon(IRLPNode(line))
                 except ValueError:
                     pass
+        for repeater in json.load(open('repeaters.json')):
+            #IRLP has been done in direct pull above.
+            if repeater['group'] != 'IRLP':
+                self.addRepeaterIcon(HearHamRepeater(repeater))
+    
+    def addRepeaterIcon(self, repeater):
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
+        self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
+        self.allrepeaters.append(repeater)
 
 
     def disable_cache_toggled(self, btn):
@@ -333,6 +329,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         if self.bgdl == None:
             self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', 'nohtmlstatus.txt')
             self.bgdl.start()
+            
+            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', 'repeaters.json')
+            self.hearhamdl.start()
             #Call again 10m later
             GObject.timeout_add(600000, self.downloadBackground)
         else:
@@ -402,14 +401,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             # cursor lat,lon = self.osm.get_event_location(event).get_degrees()
             lat, lon = self.osm.props.latitude, self.osm.props.longitude
             maxkm = 500
-            self.irlps = sorted(self.irlps, key = lambda repeater : repeater.distance(lat,lon))
+            self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
             for r in self.GTKListRows:
                 r.destroy()
             self.playBtns = []
             # clear the list, not also destroy - or list messes after moving around.
             #for b in self.playBtns:
             #    b.destroy()
-            for item in self.irlps:
+            for item in self.allrepeaters:
                 distance = item.distance(lat,lon)
                 if( distance < maxkm):
                     self.addToList(item, lat,lon)
@@ -427,11 +426,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             lbltext = "%s Reflector %s" if self.mainScreen.get_width() < 800 else "Node %s Reflector %s"
             label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign), xalign=0)
         else:
-            lbltext = "%s, %s at %smhz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %smhz"
-            label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign, repeater.freq), xalign=0)
+            if repeater.node:
+                lbltext = "%s, %s at %smhz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %smhz"
+                label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign, repeater.freq), xalign=0)
+            else:
+                lbltext = "%s, %smhz" % (repeater.callsign, repeater.freq)
+                label1 = Gtk.Label(lbltext, xalign=0)
         try:
             int(repeater.status)
-            for item in self.irlps:
+            for item in self.allrepeaters:
                 if item.node == repeater.status:
                     gothere = Gtk.Button("Linked to "+item.node)
                     innerhbox.pack_start(gothere, False, False, 0)
@@ -444,10 +447,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             else:
                 label2 = Gtk.Label("%s. PL %s, Offset %s, %s" % (repeater.status, repeater.pl, repeater.offset, repeater.url), xalign=0)
         
-        if float(repeater.freq) == 0:
-            label3 = Gtk.Label("Owned by %s" % (repeater.owner,), xalign=0)
-        else:
-            label3 = Gtk.Label("Owned by %s in %s" % (repeater.owner, repeater.city), xalign=0)
+        label3 = Gtk.Label(repeater.description, xalign=0)
         innerhbox.pack_start(label2, True, True, 0)
         
         label1.set_ellipsize(Pango.EllipsizeMode.END)
@@ -506,7 +506,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         label = btn.get_label()
         print(label)
         label = label.replace('Linked to ','')
-        for item in self.irlps:
+        for item in self.allrepeaters:
             if item.node == label:
                 self.osm.set_center(item.lat, item.lon)
 
@@ -519,10 +519,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         print('clicked %s,%s' % (lat,lon))
         near = 999999
         nearest = None
-        self.irlps = sorted(self.irlps, key = lambda repeater : repeater.distance(lat,lon))
+        self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
         cnt = 0
         return
-        for item in self.irlps:
+        for item in self.allrepeaters:
             distance = item.distance(lat,lon)
             self.addToList(item, lat,lon)
             print(distance)
