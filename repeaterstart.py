@@ -162,10 +162,10 @@ class UI(Gtk.Window):
                     DummyLayer()
         )
         #Adding image in the render code causes infinite loop.
-        #image = Gtk.Image()
-        #image.set_from_file('signaltower.svg')
-        #image.set_pixel_size(10)
-        #pixbuf = image.get_pixbuf()
+        icon_app_path = 'repeaterSTART.svg'
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
+        self.set_icon(pixbuf)
+        
         self.displayNodes()
 
         self.last_image = None
