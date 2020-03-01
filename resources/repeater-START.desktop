@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Icon=repeaterSTART
+Encoding=UTF-8
+Name=Repeater-START
+Comment=Repeater-START, Showing The Amateur Repeaters Tool. Ham radio tool.
+Exec=repeaterSTART
+Terminal=false
+Categories=Education;Science;GTK;GNOME;Utility;

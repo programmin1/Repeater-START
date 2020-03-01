@@ -24,10 +24,12 @@ import subprocess
 import json
 from gi.repository import Gtk
 from gi.repository import Gdk
+from gi.repository import GLib
 from gi.repository import GdkPixbuf
 from gi.repository import GObject
 from gi.repository import Pango
 import time
+import random
 from gi.repository import cairo
 
 from gi.repository import Geoclue
@@ -80,7 +82,7 @@ class BackgroundDownload(Thread):
         self.finished = False
     def run(self):
         try:
-            tmpfile = 'output'+str(int(time.time()))
+            tmpfile = '/tmp/output'+str(int(time.time()))+str(random.random())
             urllib.request.urlretrieve(self.url, tmpfile)
             shutil.move( tmpfile, self.filename )
             self.finished = True
@@ -162,9 +164,10 @@ class UI(Gtk.Window):
                     DummyLayer()
         )
         #Adding image in the render code causes infinite loop.
-        icon_app_path = 'repeaterSTART.svg'
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
-        self.set_icon(pixbuf)
+        icon_app_path = '/usr/share/icons/hicolor/scalable/apps/repeaterSTART.svg'
+        if os.path.exists(icon_app_path):
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
+            self.set_icon(pixbuf)
         
         self.displayNodes()
 
@@ -257,7 +260,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.vbox.pack_end(hbox, False, True, 0)
 
         GObject.timeout_add(500, self.print_tiles)
-        GObject.timeout_add(10000, self.downloadBackground)
+        GObject.timeout_add(1000, self.downloadBackground)
         self.bgdl = None
 
         self.listbox = Gtk.ListBox()
@@ -270,21 +273,36 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.vbox.pack_start(scrolled, True, True, 0)
         self.GTKListRows = []
         self.playBtns = []
+        
+    def userFile(self, name):
+        """ Returns available filename in user data dir for this app. """
+        mydir = os.path.join(GLib.get_user_data_dir(),'repeater-START')
+        if not os.path.exists(mydir):
+            os.mkdir(mydir)
+        return os.path.join(mydir,name)
 
 
     def displayNodes(self):
         self.osm.image_remove_all()
-        with open('nohtmlstatus.txt') as repfile:
-            self.allrepeaters = []
-            for line in repfile:
-                try:
-                    self.addRepeaterIcon(IRLPNode(line))
-                except ValueError:
-                    pass
-        for repeater in json.load(open('repeaters.json')):
-            #IRLP has been done in direct pull above.
-            if repeater['group'] != 'IRLP':
-                self.addRepeaterIcon(HearHamRepeater(repeater))
+        self.allrepeaters = []
+        irlpfile = self.userFile('irlp.txt')
+        repeatersfile = self.userFile('repeaters.json')
+        if os.path.exists(irlpfile):
+            with open(irlpfile) as repfile:
+                for line in repfile:
+                    try:
+                        self.addRepeaterIcon(IRLPNode(line))
+                    except ValueError as e:
+                        print(e)
+        else:
+            print('WARNING IRLP FILE NOT LOADED')
+        if os.path.exists(repeatersfile):                
+            for repeater in json.load(open(repeatersfile)):
+                #IRLP has been done in direct pull above.
+                if repeater['group'] != 'IRLP':
+                    self.addRepeaterIcon(HearHamRepeater(repeater))
+        else:
+            print('WARNING REPEATERS FILE NOT LOADED')
     
     def addRepeaterIcon(self, repeater):
         pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
@@ -327,13 +345,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def downloadBackground(self):
         if self.bgdl == None:
-            self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', 'nohtmlstatus.txt')
+            self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', self.userFile('irlp.txt'))
             self.bgdl.start()
             
-            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', 'repeaters.json')
+            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', self.userFile('repeaters.json'))
             self.hearhamdl.start()
             #Call again 10m later
             GObject.timeout_add(600000, self.downloadBackground)
+            if 0 == len(self.allrepeaters):
+                GObject.timeout_add(10000, self.displayNodes)
         else:
             if self.bgdl.finished:
                 self.displayNodes()

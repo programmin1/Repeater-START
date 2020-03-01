@@ -1,0 +1,4 @@
+#!/bin/bash
+#Starts up repeater-start
+cd /usr/share/repeater-START/
+./repeaterstart.py $@

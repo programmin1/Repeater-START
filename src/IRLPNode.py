@@ -7,7 +7,10 @@ class IRLPNode(Repeater):
         [self.node, self.callsign, self.city, self.state, self.country, self.status, self.record, self.install, self.lat, self.lon, self.lastupdate, self.freq, self.offset, self.pl, self.owner, self.url, self.lastchange, self.avrsstatus] = line.split('\t')
         self.lat = float(self.lat)
         self.lon = float(self.lon)
-        self.offset = int(self.offset)/1000
+        #try:
+        self.offset = float(self.offset)/1000
+        #except ValueError as e:
+        #    print("EEK"+e)
         if float(self.freq) == 0:
             self.description = "Owned by %s" % (self.owner,)
         else:
