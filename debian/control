@@ -10,7 +10,7 @@ X-Python3-Version: >= 3.2
 #Vcs-Git: git://anonscm.debian.org/collab-maint/repeater-start.git
 #Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/repeater-start.git
 
-Package: python3-repeater-start
+Package: repeater-start
 Architecture: all
 Depends: ${python3:Depends}, gir1.2-osmgpsmap-1.0, gir1.2-geoclue-2.0, python3-gi
 Suggests: 
