@@ -153,12 +153,22 @@ class UI(Gtk.Window):
         if 0:
             self.osm = DummyMapNoGpsPoint()
         else:
-            self.osm = osmgpsmap.Map()#user_agent="mapviewer.py/%s" % osmgpsmap._version)
-        self.osm.layer_add(
-                    osmgpsmap.MapOsd(
+            self.osm = osmgpsmap.Map(
+                repo_uri='http://api.mapbox.com/v4/mapbox.outdoors/#Z/#X/#Y.jpg90?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg',
+                    image_format='jpg'
+            )#user_agent="mapviewer.py/%s" % osmgpsmap._version)
+        osd = osmgpsmap.MapOsd(
                         show_dpad=True,
                         show_zoom=True,
                         show_crosshair=True)
+        
+        icon_app_path = '/usr/share/icons/hicolor/scalable/apps/repeaterSTART.svg'
+        if os.path.exists(icon_app_path):
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
+            surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
+        osd.draw(self.osm, surface)
+        self.osm.layer_add(
+                    osd
         )
         self.osm.layer_add(
                     DummyLayer()
@@ -202,8 +212,17 @@ class UI(Gtk.Window):
         
         cache_button = Gtk.Button('Cache')
         cache_button.connect('clicked', self.cache_clicked)
-
-        self.vbox.pack_start(self.osm, True, True, 0)
+        overlay = Gtk.Overlay()
+        overlay.add(self.osm)
+        top_container = Gtk.VBox()
+        btmlbl = Gtk.Label("(c) Mapbox (c) Openstreetmap",xalign=1);
+        mapboxlogo = Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale('mapbox.svg',width=90,height=30,preserve_aspect_ratio=True))
+        top_container.pack_end(mapboxlogo, False, False, 0)
+        top_container.pack_end(btmlbl, False, False, 0)
+        self.vbox.pack_start(overlay, True, True, 0)
+        overlay.add(btmlbl)
+        overlay.add_overlay(top_container)
+        overlay.set_overlay_pass_through(top_container,True)
         hbox = Gtk.HBox(False, 0)
         hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(back_button, False, True, 0)
@@ -214,6 +233,7 @@ class UI(Gtk.Window):
         ex.props.use_markup = True
         vb = Gtk.VBox()
         self.repouri_entry = Gtk.Entry()
+        self.osm.props.repo_uri = 'https://api.mapbox.com/v4/mapbox.outdoors/#Z/#X/#Y@2x.jpg80?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
         self.repouri_entry.set_text(self.osm.props.repo_uri)
         self.image_format_entry = Gtk.Entry()
         self.image_format_entry.set_text(self.osm.props.image_format)
@@ -250,7 +270,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         vb.pack_start(hb, False, True, 0)
 
         gobtn = Gtk.Button("Load Map URI")
-        #gobtn.connect("clicked", self.load_map_clicked)
+        gobtn.connect("clicked", self.load_map_clicked)
         vb.pack_start(gobtn, False, True, 0)
 
         self.show_tooltips = False
@@ -335,7 +355,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 print( "ERROR:" )
                 self.osm = osm.Map()
             self.vbox.pack_start(self.osm, True, True, 0)
-            self.osm.connect('button_release_event', self.map_clicked)
+            #self.osm.connect('button_release_event', self.map_clicked)
             self.osm.show()
 
     def print_tiles(self):
@@ -398,10 +418,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def cache_clicked(self, button):
         bbox = self.osm.get_bbox()
+        maxz = self.osm.props.max_zoom
+        if maxz - self.osm.props.zoom > 3:
+            maxz = self.osm.props.zoom + 3
+        print( '%s max %s' % (self.osm.props.zoom, maxz) )
         self.osm.download_maps(
             *bbox,
             zoom_start=self.osm.props.zoom,
-            zoom_end=self.osm.props.max_zoom
+            zoom_end=maxz
         )
 
     def on_map_change(self, event):
