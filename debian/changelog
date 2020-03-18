@@ -2,8 +2,9 @@ repeater-start (0.2) unstable; urgency=medium
 
  * Mapbox topo map
  * Better icons and ui.
+ * Add repeater button.
  
- -- Luke <luke@hearham.live>  Wed, 18 Mar 2020 4:59:15 -0800
+ -- Luke <luke@hearham.live>  Wed, 18 Mar 2020 7:15:15 -0800
 
 repeater-start (0.1-1) unstable; urgency=medium
 
