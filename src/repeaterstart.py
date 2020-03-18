@@ -80,12 +80,14 @@ class BackgroundDownload(Thread):
         self.url = url
         self.filename = filename
         self.finished = False
+        self.success = False
     def run(self):
         try:
             tmpfile = '/tmp/output'+str(int(time.time()))+str(random.random())
             urllib.request.urlretrieve(self.url, tmpfile)
             shutil.move( tmpfile, self.filename )
             self.finished = True
+            self.success = True
         except urllib.error.URLError:
             print("offline?")
             self.finished = True
@@ -210,8 +212,11 @@ class UI(Gtk.Window):
         back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
         back_button.connect('clicked', self.back_clicked)
         
-        cache_button = Gtk.Button('Cache')
+        cache_button = Gtk.Button('Cache Offline')
         cache_button.connect('clicked', self.cache_clicked)
+        add_button = Gtk.Button('Add Repeater')
+        add_button.connect('clicked', self.add_repeater_clicked)
+        
         overlay = Gtk.Overlay()
         overlay.add(self.osm)
         top_container = Gtk.VBox()
@@ -231,14 +236,13 @@ class UI(Gtk.Window):
         hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(back_button, False, True, 0)
         hbox.pack_start(cache_button, False, True, 0)
+        hbox.pack_start(add_button, False, True, 0)
 
         #add ability to test custom map URIs
         #ex = Gtk.Expander(label="<b>Display Options</b>")
         #ex.props.use_markup = True
         vb = Gtk.VBox()
         self.repouri_entry = Gtk.Entry()
-        self.osm.props.repo_uri = 'https://api.mapbox.com/v4/mapbox.outdoors/#Z/#X/#Y@2x.jpg80?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
-        self.repouri_entry.set_text(self.osm.props.repo_uri)
         self.image_format_entry = Gtk.Entry()
         self.image_format_entry.set_text(self.osm.props.image_format)
 
@@ -382,6 +386,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 self.displayNodes()
                 self.bgdl = None #and do create thread again:
                 self.downloadBackground()
+            if self.bgdl.success:
+                #Since we're online, do cleanup of any ancient files, clean up and also due to Mapbox TOS:
+                old = time.time() - 60*60*24*3
+                for root, dirs, files in os.walk(self.osm.get_default_cache_directory()):
+                    for jpg in files:
+                        path = os.path.join(root, jpg)
+                        if jpg.endswith('.jpg') and os.path.getmtime(path) < old:
+                            print('Old, removing '+path)
+                            os.remove(path)
 
     def zoom_in_clicked(self, button):
         self.osm.set_zoom(self.osm.props.zoom + 1)
@@ -430,6 +443,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             zoom_start=self.osm.props.zoom,
             zoom_end=maxz
         )
+        
+    def add_repeater_clicked(self, button):
+        os.system('xdg-open "https://hearham.com/repeaters/add?lat=%s&lon=%s"' % (self.osm.props.latitude, self.osm.props.longitude) )
 
     def on_map_change(self, event):
         if self.renderedLat != self.osm.props.latitude or self.renderedLon != self.osm.props.longitude:
@@ -517,13 +533,17 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             km = km*.62137119
         
         distlbl = Gtk.Label( '%s %s ' % ( int(km*10)/10, self.unit ))
-        playbtn = Gtk.Button(stock=Gtk.STOCK_MEDIA_PLAY)
-        playbtn.set_label('')
+        playbtn = Gtk.Button()
+        playbtn.set_image(Gtk.Image(icon_name='media-playback-start',
+                      icon_size=self.PLAYSIZE))
+        #playbtn.set_label('') Makes icon disappear, on many systems with button icon turned off.
         playbtn.selFrequency = repeater.freq
         if repeater.freq == self.playingfreq:
-            playbtn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_STOP, self.PLAYSIZE))
+            playbtn.set_image(Gtk.Image(icon_name='media-playback-stop',
+                      icon_size=self.PLAYSIZE))
         else:
-            playbtn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_PLAY, self.PLAYSIZE))
+            playbtn.set_image(Gtk.Image(icon_name='media-playback-start',
+                      icon_size=self.PLAYSIZE))
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
         rightbox.pack_start(distlbl, False, True, 10)
@@ -540,14 +560,17 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.playRTLSDR(btn.selFrequency)
             self.playingfreq = btn.selFrequency
             for b in self.playBtns:
-                b.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_PLAY, self.PLAYSIZE))
+                b.set_image(Gtk.Image(icon_name='media-playback-start',
+                      icon_size=self.PLAYSIZE))
             #All others are stopped.
-            btn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_STOP, self.PLAYSIZE))
+            btn.set_image(Gtk.Image(icon_name='media-playback-stop',
+                      icon_size=self.PLAYSIZE))
         else:
             if self.rtllistener:
                 self.rtllistener.proc.kill()
             self.playingfreq = None
-            btn.set_image(Gtk.Image.new_from_stock(Gtk.STOCK_MEDIA_PLAY, self.PLAYSIZE))
+            btn.set_image(Gtk.Image(icon_name='media-playback-start',
+                      icon_size=self.PLAYSIZE))
 
     def goLinkIRLP(self, btn):
         label = btn.get_label()
