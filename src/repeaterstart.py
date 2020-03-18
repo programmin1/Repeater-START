@@ -384,17 +384,19 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         else:
             if self.bgdl.finished:
                 self.displayNodes()
+                if self.bgdl.success:
+                    #Since we're online, do cleanup of any ancient files, clean up and also due to Mapbox TOS:
+                    old = time.time() - 60*60*24*31
+                    print( 'Going back to %s' % (old,))
+                    for root, dirs, files in os.walk(self.osm.get_default_cache_directory()):
+                        for jpg in files:
+                            path = os.path.join(root, jpg)
+                            if jpg.endswith('.jpg') and os.path.getmtime(path) < old:
+                                print('Old, removing '+path)
+                                os.remove(path)
                 self.bgdl = None #and do create thread again:
                 self.downloadBackground()
-            if self.bgdl.success:
-                #Since we're online, do cleanup of any ancient files, clean up and also due to Mapbox TOS:
-                old = time.time() - 60*60*24*3
-                for root, dirs, files in os.walk(self.osm.get_default_cache_directory()):
-                    for jpg in files:
-                        path = os.path.join(root, jpg)
-                        if jpg.endswith('.jpg') and os.path.getmtime(path) < old:
-                            print('Old, removing '+path)
-                            os.remove(path)
+            
 
     def zoom_in_clicked(self, button):
         self.osm.set_zoom(self.osm.props.zoom + 1)
