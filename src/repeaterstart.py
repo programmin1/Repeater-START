@@ -215,22 +215,26 @@ class UI(Gtk.Window):
         overlay = Gtk.Overlay()
         overlay.add(self.osm)
         top_container = Gtk.VBox()
-        btmlbl = Gtk.Label("(c) Mapbox (c) Openstreetmap",xalign=1);
-        mapboxlogo = Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale('mapbox.svg',width=90,height=30,preserve_aspect_ratio=True))
-        top_container.pack_end(mapboxlogo, False, False, 0)
-        top_container.pack_end(btmlbl, False, False, 0)
+        leftright_container = Gtk.HBox()
+        mapboxlogo = Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale('mapbox.svg',width=80,height=25,preserve_aspect_ratio=True))
+        leftright_container.pack_start(mapboxlogo, False, False, 0)
+        leftright_container.pack_end(self.linkLabel(' Improve this map', self.improvement_link), False, False, 0)
+        leftright_container.pack_end(self.linkLabel(' (c) openstreetmap ', self.credit_osm), False, False, 0)
+        leftright_container.pack_end(self.linkLabel(' (c) mapbox ', self.credit_mapbox), False, False, 0)
+        
+        top_container.pack_end(leftright_container, False, False, 0)
         self.vbox.pack_start(overlay, True, True, 0)
-        overlay.add(btmlbl)
         overlay.add_overlay(top_container)
         overlay.set_overlay_pass_through(top_container,True)
+        #overlay.set_overlay_pass_through(mapboxlink,False)
         hbox = Gtk.HBox(False, 0)
         hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(back_button, False, True, 0)
         hbox.pack_start(cache_button, False, True, 0)
 
         #add ability to test custom map URIs
-        ex = Gtk.Expander(label="<b>Display Options</b>")
-        ex.props.use_markup = True
+        #ex = Gtk.Expander(label="<b>Display Options</b>")
+        #ex.props.use_markup = True
         vb = Gtk.VBox()
         self.repouri_entry = Gtk.Entry()
         self.osm.props.repo_uri = 'https://api.mapbox.com/v4/mapbox.outdoors/#Z/#X/#Y@2x.jpg80?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
@@ -256,26 +260,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         lbl.props.use_markup = True
         lbl.props.wrap = True
 
-        ex.add(vb)
-        vb.pack_start(lbl, False, True, 0)
-
-        hb = Gtk.HBox()
-        hb.pack_start(Gtk.Label("URI: "), False, True, 0)
-        hb.pack_start(self.repouri_entry, True, True, 0)
-        vb.pack_start(hb, False, True, 0)
-
-        hb = Gtk.HBox()
-        hb.pack_start(Gtk.Label("Image Format: "), False, True, 0)
-        hb.pack_start(self.image_format_entry, True, True, 0)
-        vb.pack_start(hb, False, True, 0)
-
-        gobtn = Gtk.Button("Load Map URI")
-        gobtn.connect("clicked", self.load_map_clicked)
-        vb.pack_start(gobtn, False, True, 0)
-
+        #ex.add(vb)
         self.show_tooltips = False
-
-        self.vbox.pack_end(ex, False, True, 0)
+        #self.vbox.pack_end(ex, False, True, 0)
         self.vbox.pack_end(self.latlon_entry, False, True, 0)
         self.vbox.pack_end(hbox, False, True, 0)
 
@@ -293,6 +280,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.vbox.pack_start(scrolled, True, True, 0)
         self.GTKListRows = []
         self.playBtns = []
+    
+    def linkLabel(self, lbltext, connectfunction):
+        """ Like a label, clickable. https://stackoverflow.com/questions/5822191/ """
+        lbl = Gtk.Label(lbltext, xalign=1);
+        lbl.set_has_window(True)
+        lbl.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        lbl.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.0, 0.0, 0.8, 1.0))
+        lbl.connect("button-press-event", connectfunction)
+        return lbl
         
     def userFile(self, name):
         """ Returns available filename in user data dir for this app. """
@@ -323,6 +319,13 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     self.addRepeaterIcon(HearHamRepeater(repeater))
         else:
             print('WARNING REPEATERS FILE NOT LOADED')
+    
+    def credit_mapbox(self, obj, obj2):
+        os.system('xdg-open https://www.mapbox.com/about/maps/')
+    def credit_osm(self, obj, obj2):
+        os.system('xdg-open http://www.openstreetmap.org/about/')
+    def improvement_link(self, obj, obj2):
+        os.system('xdg-open https://www.mapbox.com/map-feedback/#/-74.5/40/10')
     
     def addRepeaterIcon(self, repeater):
         pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
