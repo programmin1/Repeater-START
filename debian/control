@@ -12,6 +12,6 @@ X-Python3-Version: >= 3.2
 
 Package: repeater-start
 Architecture: all
-Depends: ${python3:Depends}, gir1.2-osmgpsmap-1.0, gir1.2-geoclue-2.0, python3-gi
+Depends: ${python3:Depends}, gir1.2-osmgpsmap-1.0, gir1.2-geoclue-2.0, python3-gi, python3-gi-cairo, xdg-utils
 Suggests: 
 Description: Repeater-START (Showing The Amateur Repeaters Tool)

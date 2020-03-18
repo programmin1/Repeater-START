@@ -168,7 +168,7 @@ class UI(Gtk.Window):
         if os.path.exists(icon_app_path):
             pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
             surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
-        osd.draw(self.osm, surface)
+        
         self.osm.layer_add(
                     osd
         )
