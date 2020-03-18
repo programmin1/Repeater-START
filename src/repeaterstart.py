@@ -212,7 +212,7 @@ class UI(Gtk.Window):
         back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
         back_button.connect('clicked', self.back_clicked)
         
-        cache_button = Gtk.Button('Cache Offline')
+        cache_button = Gtk.Button('Cache')
         cache_button.connect('clicked', self.cache_clicked)
         add_button = Gtk.Button('Add Repeater')
         add_button.connect('clicked', self.add_repeater_clicked)
@@ -518,7 +518,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         label1.set_ellipsize(Pango.EllipsizeMode.END)
         label2.set_ellipsize(Pango.EllipsizeMode.END)
         label3.set_ellipsize(Pango.EllipsizeMode.END)
-        if True or self.mainScreen.get_width() < 800:
+        if self.mainScreen.get_width() < 800:
             label2.modify_font(Pango.font_description_from_string("Ubuntu 10"))
             label3.modify_font(Pango.font_description_from_string("Ubuntu 10"))
         
