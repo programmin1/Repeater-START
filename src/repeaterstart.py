@@ -136,7 +136,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-
+        self.version = '0.3'
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
         self.set_title('RepeaterSTART GPS Mapper')
@@ -151,14 +151,10 @@ class UI(Gtk.Window):
         self.PLAYSIZE = Gtk.IconSize.BUTTON
         
         self.mainScreen = Gdk.Screen.get_default()
-
-        if 0:
-            self.osm = DummyMapNoGpsPoint()
-        else:
-            self.osm = osmgpsmap.Map(
-                repo_uri='http://api.mapbox.com/v4/mapbox.outdoors/#Z/#X/#Y.jpg90?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg',
-                    image_format='jpg'
-            )#user_agent="mapviewer.py/%s" % osmgpsmap._version)
+        self.osm = osmgpsmap.Map(
+            repo_uri='https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg',
+                image_format='jpg'
+        )#user_agent="mapviewer.py/%s" % osmgpsmap._version)
         osd = osmgpsmap.MapOsd(
                         show_dpad=True,
                         show_zoom=True,
@@ -208,6 +204,15 @@ class UI(Gtk.Window):
         home_button.set_image(GoImg)
         home_button.set_tooltip_text('Find my location')
         
+        help_button = Gtk.Button()
+        help_button.set_image(Gtk.Image(icon_name='help-browser',
+                      icon_size=21))
+        help_button.connect('clicked', self.help_clicked)
+        help_about_button = Gtk.Button()
+        help_about_button.set_image(Gtk.Image(icon_name='help-about',
+                      icon_size=21))
+        help_about_button.connect('clicked', self.helpAbout_clicked)
+        
         home_button.connect('clicked', self.home_clicked)
         back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
         back_button.connect('clicked', self.back_clicked)
@@ -237,6 +242,8 @@ class UI(Gtk.Window):
         hbox.pack_start(back_button, False, True, 0)
         hbox.pack_start(cache_button, False, True, 0)
         hbox.pack_start(add_button, False, True, 0)
+        hbox.pack_start(help_button, False, True, 0)
+        hbox.pack_start(help_about_button, False, True, 0)
 
         #add ability to test custom map URIs
         #ex = Gtk.Expander(label="<b>Display Options</b>")
@@ -284,6 +291,28 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.vbox.pack_start(scrolled, True, True, 0)
         self.GTKListRows = []
         self.playBtns = []
+        GObject.idle_add(self.updateMessage)
+        
+    def updateMessage(self):
+        toupdatefile = self.userFile('update.response')
+        if os.path.exists(toupdatefile):
+            Gdk.threads_enter()
+            try:
+                updateinfo = json.load(open(toupdatefile))
+                if str(updateinfo['version']) != self.version:
+                    dlg = Gtk.MessageDialog(self, 
+                        0,Gtk.MessageType.QUESTION,
+                        Gtk.ButtonsType.YES_NO,
+                        'There is an update available. Do you wish to install it?\n'+
+                        updateinfo['message'])
+                    response = dlg.run()
+                    if response == Gtk.ResponseType.YES:
+                        os.system('xdg-open '+updateinfo['link'])
+                    dlg.destroy()
+                        
+            except:
+                print('Error update check')
+            Gdk.threads_leave()
     
     def linkLabel(self, lbltext, connectfunction):
         """ Like a label, clickable. https://stackoverflow.com/questions/5822191/ """
@@ -329,7 +358,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def credit_osm(self, obj, obj2):
         os.system('xdg-open http://www.openstreetmap.org/about/')
     def improvement_link(self, obj, obj2):
-        os.system('xdg-open https://www.mapbox.com/map-feedback/#/-74.5/40/10')
+        os.system('xdg-open https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater):
         pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
@@ -377,6 +406,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             
             self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', self.userFile('repeaters.json'))
             self.hearhamdl.start()
+            
+            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', self.userFile('update.response'))
+            self.checkUpdate.start()
             #Call again 10m later
             GObject.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):
@@ -410,6 +442,26 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         
     def back_clicked(self, button):
         self.osm.set_center_and_zoom(self.lastLat, self.lastLon, 12)
+        
+    def help_clicked(self, button):
+        dlg = Gtk.MessageDialog(self, 
+            0,Gtk.MessageType.INFO,
+            Gtk.ButtonsType.OK,
+            'Repeater-START is an application for amateur radio.\nWhen started, this app will try to update the latest repeaters.\n'+
+            'If offline, the list will be loaded from user storage.\n'+
+            'While online, you may hit "cache" and store map tiles for later use, and choose "add repeater" to contribute to the repeater database!\n'
+            'All repeaters in the lower half of the screen are listed by distance, closest to the center map marker first.')
+        response = dlg.run()
+        dlg.destroy()
+        
+    def helpAbout_clicked(self,button):
+        dlg = Gtk.MessageDialog(self, 
+            0,Gtk.MessageType.INFO,
+            Gtk.ButtonsType.OK,
+            'Repeater-START v'+self.version+'\n'+
+            'Showing The Amateur Repeaters Tool - The only open-source Linux desktop repeater app utilizing the open-data repeater database.')
+        response = dlg.run()
+        dlg.destroy()
         
     def getlocation(self):
         self.lastLat = self.osm.props.latitude
@@ -470,13 +522,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             for r in self.GTKListRows:
                 r.destroy()
             self.playBtns = []
-            # clear the list, not also destroy - or list messes after moving around.
-            #for b in self.playBtns:
-            #    b.destroy()
+            added = 0
             for item in self.allrepeaters:
                 distance = item.distance(lat,lon)
                 if( distance < maxkm):
                     self.addToList(item, lat,lon)
+                added += 1
+                if added > 100: #Listing excessively many makes it laggy, eg New England repeaters.
+                    break
             self.listbox.show_all()
             print('time: %s' % (time.time()  - t))
     
