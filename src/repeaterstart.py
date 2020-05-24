@@ -455,7 +455,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             'Repeater-START is an application for amateur radio.\nWhen started, this app will try to update the latest repeaters.\n'+
             'If offline, the list will be loaded from user storage.\n'+
             'While online, you may hit "cache" and store map tiles for later use, and choose "add repeater" to contribute to the repeater database!\n'
-            'All repeaters in the lower half of the screen are listed by distance, closest to the center map marker first.')
+            'All repeaters in the lower half of the screen are listed by distance, closest to the center map marker first.\n'+
+            'Double click a repeater to center its position selected on the map.\n'+
+            'Or click play to try to listen through a RTLSDR device.')
         response = dlg.run()
         dlg.destroy()
         
@@ -494,8 +496,8 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def cache_clicked(self, button):
         bbox = self.osm.get_bbox()
         maxz = self.osm.props.max_zoom
-        if maxz - self.osm.props.zoom > 3:
-            maxz = self.osm.props.zoom + 3
+        if maxz - self.osm.props.zoom > 2:
+            maxz = self.osm.props.zoom + 2
         print( '%s max %s' % (self.osm.props.zoom, maxz) )
         self.osm.download_maps(
             *bbox,
