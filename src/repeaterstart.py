@@ -282,7 +282,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.bgdl = None
 
         self.listbox = Gtk.ListBox()
-
+        self.listbox.set_activate_on_single_click(False)
+        self.listbox.connect('row-activated', self.selrow)
+        
         #listbox.set_selection_mode(Gtk.SelectionMode.NONE)
 
         scrolled = Gtk.ScrolledWindow()
@@ -292,6 +294,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.GTKListRows = []
         self.playBtns = []
         GObject.idle_add(self.updateMessage)
+        
+    def selrow(self,widget,listboxrow):
+        self.osm.set_center(listboxrow.latitude, listboxrow.longitude)
         
     def updateMessage(self):
         toupdatefile = self.userFile('update.response')
@@ -535,6 +540,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     
     def addToList(self, repeater, lat, lon):
         row = Gtk.ListBoxRow()
+        row.longitude = repeater.lon
+        row.latitude = repeater.lat
+        # ^ for double click activate
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         row.add(hbox)
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
