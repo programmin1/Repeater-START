@@ -36,6 +36,7 @@ from gi.repository import Geoclue
 import math
 import shutil
 import urllib.request
+import urllib.parse
 from math import pi, sin, cos, sqrt, atan2, radians
 
 from IRLPNode import IRLPNode
@@ -137,6 +138,7 @@ class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
         self.version = '0.3'
+        self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
         self.set_title('RepeaterSTART GPS Mapper')
@@ -203,24 +205,30 @@ class UI(Gtk.Window):
         GoImg = Gtk.Image.new_from_pixbuf(pixbuf)
         home_button.set_image(GoImg)
         home_button.set_tooltip_text('Find my location')
+        search_button = Gtk.Button()
+        search_button.set_image(Gtk.Image(icon_name='edit-find',
+                      icon_size=21))
+        search_button.connect('clicked', self.searchToggle_clicked)
+        self.search_text = Gtk.Entry()
+        self.search_text.connect('activate',self.search_call)
         
-        help_button = Gtk.Button()
-        help_button.set_image(Gtk.Image(icon_name='help-browser',
+        self.help_button = Gtk.Button()
+        self.help_button.set_image(Gtk.Image(icon_name='help-browser',
                       icon_size=21))
-        help_button.connect('clicked', self.help_clicked)
-        help_about_button = Gtk.Button()
-        help_about_button.set_image(Gtk.Image(icon_name='help-about',
+        self.help_button.connect('clicked', self.help_clicked)
+        self.help_about_button = Gtk.Button()
+        self.help_about_button.set_image(Gtk.Image(icon_name='help-about',
                       icon_size=21))
-        help_about_button.connect('clicked', self.helpAbout_clicked)
+        self.help_about_button.connect('clicked', self.helpAbout_clicked)
         
         home_button.connect('clicked', self.home_clicked)
-        back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
-        back_button.connect('clicked', self.back_clicked)
+        self.back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
+        self.back_button.connect('clicked', self.back_clicked)
         
-        cache_button = Gtk.Button('Cache')
-        cache_button.connect('clicked', self.cache_clicked)
-        add_button = Gtk.Button('Add Repeater')
-        add_button.connect('clicked', self.add_repeater_clicked)
+        self.cache_button = Gtk.Button('Cache')
+        self.cache_button.connect('clicked', self.cache_clicked)
+        self.add_button = Gtk.Button('Add Repeater')
+        self.add_button.connect('clicked', self.add_repeater_clicked)
         
         overlay = Gtk.Overlay()
         overlay.add(self.osm)
@@ -239,11 +247,13 @@ class UI(Gtk.Window):
         #overlay.set_overlay_pass_through(mapboxlink,False)
         hbox = Gtk.HBox(False, 0)
         hbox.pack_start(home_button, False, True, 0)
-        hbox.pack_start(back_button, False, True, 0)
-        hbox.pack_start(cache_button, False, True, 0)
-        hbox.pack_start(add_button, False, True, 0)
-        hbox.pack_start(help_button, False, True, 0)
-        hbox.pack_start(help_about_button, False, True, 0)
+        hbox.pack_start(search_button, False, True, 0)
+        hbox.pack_start(self.search_text, False, True, 0)
+        hbox.pack_start(self.back_button, False, True, 0)
+        hbox.pack_start(self.cache_button, False, True, 0)
+        hbox.pack_start(self.add_button, False, True, 0)
+        hbox.pack_start(self.help_button, False, True, 0)
+        hbox.pack_start(self.help_about_button, False, True, 0)
 
         #add ability to test custom map URIs
         #ex = Gtk.Expander(label="<b>Display Options</b>")
@@ -285,18 +295,79 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.listbox.set_activate_on_single_click(False)
         self.listbox.connect('row-activated', self.selrow)
         
-        #listbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.searchlistbox = Gtk.ListBox()
+        self.searchlistbox.set_activate_on_single_click(False)
+        self.searchlistbox.connect('row-activated', self.selsearchrow)
+        self.searchRows = []
 
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.add(self.listbox)
+        #scrolled.add(self.searchlistbox)
         self.vbox.pack_start(scrolled, True, True, 0)
         self.GTKListRows = []
         self.playBtns = []
         GObject.idle_add(self.updateMessage)
         
+    def setViews(self):
+        if self.mode == 'search':
+            self.search_text.show()
+            self.back_button.hide()
+            self.cache_button.hide()
+            self.add_button.hide()
+            self.help_button.hide()
+            self.help_about_button.hide()
+            #self.listbox.hide()
+            #self.searchlistbox.show()
+        else:
+            self.search_text.hide()
+            self.back_button.show()
+            self.cache_button.show()
+            self.add_button.show()
+            self.help_button.show()
+            self.help_about_button.show()
+            #self.searchlistbox.hide()
+            #self.listbox.show()
+    
+    def search_call(self, widget):
+        srctext = widget.get_text()
+        req = urllib.request.Request(
+            'https://nominatim.openstreetmap.org/search/%s?format=json&limit=50' % (urllib.parse.quote(srctext),), 
+            data=None,
+            headers={
+                'User-Agent': 'Repeater-START/'+self.version
+            }
+        )
+        f = urllib.request.urlopen(req)
+        objs = json.loads(f.read().decode('utf-8'))
+        self.clearRows()
+        for item in objs:
+            row = Gtk.ListBoxRow()
+            row.longitude = float(item['lon'])
+            row.latitude = float(item['lat'])
+            # ^ for double click activate
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            mainlbl = Gtk.Label(item['display_name'],xalign=0)
+            hbox.pack_start(mainlbl,True,True,0)
+            row.add(hbox)
+            self.listbox.add(row)
+            self.searchRows.append(row)
+        self.listbox.show_all()
+        
+    def clearRows(self):
+        for r in self.GTKListRows:
+            r.destroy()
+        self.GTKListRows = []
+        for r in self.searchRows:
+            r.destroy()
+        self.searchRows = []
+        
+        
     def selrow(self,widget,listboxrow):
         self.osm.set_center(listboxrow.latitude, listboxrow.longitude)
+        
+    def selsearchrow(self, widget, listboxrow):
+        print(widget)
         
     def updateMessage(self):
         toupdatefile = self.userFile('update.response')
@@ -448,6 +519,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def back_clicked(self, button):
         self.osm.set_center_and_zoom(self.lastLat, self.lastLon, 12)
         
+    def searchToggle_clicked(self,button):
+        if self.mode == 'search':
+            self.mode = ''
+        else:
+            self.mode = 'search'
+            self.search_text.grab_focus()
+        self.setViews()
+        
     def help_clicked(self, button):
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.INFO,
@@ -526,8 +605,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             lat, lon = self.osm.props.latitude, self.osm.props.longitude
             maxkm = 500
             self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
-            for r in self.GTKListRows:
-                r.destroy()
+            self.clearRows()
             self.playBtns = []
             added = 0
             for item in self.allrepeaters:
@@ -562,11 +640,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 label1 = Gtk.Label(lbltext, xalign=0)
         try:
             int(repeater.status)
+            linkknown = False
             for item in self.allrepeaters:
                 if item.node == repeater.status:
-                    gothere = Gtk.Button("Linked to "+item.node)
+                    gothere = Gtk.Button("Linked to %s " % (str(repeater.status),))
                     innerhbox.pack_start(gothere, False, False, 0)
                     gothere.connect('clicked', self.goLinkIRLP)
+                    linkknown = True
+            if not linkknown and int(repeater.status) >1:
+                innerhbox.pack_start(Gtk.Label("Linked to %s. " % (repeater.status,), xalign=0),False, False, 0)
             label2 = Gtk.Label("PL %s, Offset %s, %s" % (repeater.pl, repeater.offset, repeater.url), xalign=0)
         except ValueError:
             #Not connected to number node
@@ -640,7 +722,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def goLinkIRLP(self, btn):
         label = btn.get_label()
         print(label)
-        label = label.replace('Linked to ','')
+        label = label.replace('Linked to','').strip()
         for item in self.allrepeaters:
             if item.node == label:
                 self.osm.set_center(item.lat, item.lon)
@@ -718,6 +800,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 if __name__ == "__main__":
     u = UI()
     u.show_all()
+    u.setViews()
     if os.name == "nt": Gdk.threads_enter()
     Gtk.main()
     if os.name == "nt": Gdk.threads_leave()
