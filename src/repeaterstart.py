@@ -30,6 +30,8 @@ from gi.repository import GObject
 from gi.repository import Pango
 import time
 import random
+import re
+import datetime
 from gi.repository import cairo
 
 from gi.repository import Geoclue
@@ -137,7 +139,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.3.1'
+        self.version = '0.3.2'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -331,37 +333,58 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     
     def search_call(self, widget):
         srctext = widget.get_text()
-        req = urllib.request.Request(
-            'https://nominatim.openstreetmap.org/search/%s?format=json&limit=50' % (urllib.parse.quote(srctext),), 
-            data=None,
-            headers={
-                'User-Agent': 'Repeater-START/'+self.version
-            }
-        )
-        f = urllib.request.urlopen(req)
-        objs = json.loads(f.read().decode('utf-8'))
-        self.clearRows()
-        if len(objs) == 0:
-            row = Gtk.ListBoxRow()
-            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-            mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
-            hbox.pack_start(mainlbl,True,True,0)
-            row.add(hbox)
-            self.listbox.add(row)
-            self.searchRows.append(row)
-        for item in objs:
-            row = Gtk.ListBoxRow()
-            row.longitude = float(item['lon'])
-            row.latitude = float(item['lat'])
-            # ^ for double click activate
-            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-            mainlbl = Gtk.Label(item['display_name'],xalign=0)
-            hbox.pack_start(mainlbl,True,True,0)
-            row.add(hbox)
-            self.listbox.add(row)
-            self.searchRows.append(row)
-        self.listbox.show_all()
-        
+        try:
+            #What3Words address has 2 . in it:
+            if re.match( r".*\..*\..*", srctext):
+                req = urllib.request.Request(
+                    'https://hearham.com/api/whatthreewords/v1?words=%s' % (urllib.parse.quote(srctext),), 
+                    data=None,
+                    headers={
+                        'User-Agent': 'Repeater-START/'+self.version
+                    }
+                )
+                f = urllib.request.urlopen(req)
+                objs = json.loads(f.read().decode('utf-8'))
+                if not objs:
+                    self.latlon_entry.set_text('Invalid what3words.com address.')
+                else:
+                    #print(objs)
+                    self.osm.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
+                    self.latlon_entry.set_text('Map Center: %s : %s' % ( objs['map'], objs['nearestPlace'] ) )
+            else:
+                req = urllib.request.Request(
+                    'https://nominatim.openstreetmap.org/search/%s?format=json&limit=50' % (urllib.parse.quote(srctext),), 
+                    data=None,
+                    headers={
+                        'User-Agent': 'Repeater-START/'+self.version
+                    }
+                )
+                f = urllib.request.urlopen(req)
+                objs = json.loads(f.read().decode('utf-8'))
+                self.clearRows()
+                if len(objs) == 0:
+                    row = Gtk.ListBoxRow()
+                    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                    mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
+                    hbox.pack_start(mainlbl,True,True,0)
+                    row.add(hbox)
+                    self.listbox.add(row)
+                    self.searchRows.append(row)
+                for item in objs:
+                    row = Gtk.ListBoxRow()
+                    row.longitude = float(item['lon'])
+                    row.latitude = float(item['lat'])
+                    # ^ for double click activate
+                    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                    mainlbl = Gtk.Label(item['display_name'],xalign=0)
+                    hbox.pack_start(mainlbl,True,True,0)
+                    row.add(hbox)
+                    self.listbox.add(row)
+                    self.searchRows.append(row)
+                self.listbox.show_all()
+        except urllib.error.URLError:
+            self.latlon_entry.set_text('Network error')
+            
     def clearRows(self):
         for r in self.GTKListRows:
             r.destroy()
@@ -549,11 +572,13 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         dlg.destroy()
         
     def helpAbout_clicked(self,button):
+        changed = datetime.datetime.fromtimestamp(os.path.getmtime(self.userFile('repeaters.json'))).strftime('%c')
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.INFO,
             Gtk.ButtonsType.OK,
             'Repeater-START v'+self.version+'\n'+
-            'Showing The Amateur Repeaters Tool - The only open-source Linux desktop repeater app utilizing the open-data repeater database.')
+            'Showing The Amateur Repeaters Tool - The only open-source Linux desktop repeater app utilizing the open-data repeater database.\n\n'+
+            'Your downloaded repeater database was updated:\n'+changed)
         response = dlg.run()
         dlg.destroy()
         

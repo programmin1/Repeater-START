@@ -1,3 +1,8 @@
+repeater-start (0.3.2) unstable; urgency=medium
+ * Improved search, What3words capability.
+
+ -- Luke <luke@hearham.live>  Sat, 18 Jul 2020 04:45:00 -0800
+
 repeater-start (0.3.1) unstable; urgency=medium
  * Improved IRLP description, link button
 
