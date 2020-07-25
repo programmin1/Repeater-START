@@ -7,3 +7,7 @@ Comment=Repeater-START, Showing The Amateur Repeaters Tool. Ham radio tool.
 Exec=repeaterSTART
 Terminal=false
 Categories=Education;Science;GTK;GNOME;Utility;
+Keywords=Maps;
+DBusActivatable=true
+X-Geoclue-Reason=Allows you to look up nearby amateur radio repeaters.
+Name[en_US]=repeaterstart.desktop

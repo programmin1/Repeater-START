@@ -585,9 +585,26 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def getlocation(self):
         self.lastLat = self.osm.props.latitude
         self.lastLon = self.osm.props.longitude
-        clue = Geoclue.Simple.new_sync('repeaterstart',Geoclue.AccuracyLevel.EXACT,None)
-        location = clue.get_location()
-        self.osm.set_center_and_zoom(location.get_property('latitude'), location.get_property('longitude'), 12)
+        try:
+            clue = Geoclue.Simple.new_sync('repeaterstart',Geoclue.AccuracyLevel.EXACT,None)
+            location = clue.get_location()
+            self.osm.set_center_and_zoom(location.get_property('latitude'), location.get_property('longitude'), 12)
+        except GLib.Error as err:
+            print(err)
+            GObject.idle_add(self.privacySettingsOpen)
+            
+    
+    def privacySettingsOpen(self):
+        Gdk.threads_enter()
+        dlg = Gtk.MessageDialog(self, 
+            0,Gtk.MessageType.WARNING,
+            Gtk.ButtonsType.OK,
+            'Please allow geolocation to use this feature.')
+        response = dlg.run()
+        dlg.destroy()
+        subprocess.Popen(['gnome-control-center','privacy'])
+        Gdk.threads_leave()
+
 
     def on_query_tooltip(self, widget, x, y, keyboard_tip, tooltip, data=None):
         if keyboard_tip:

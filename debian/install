@@ -1,4 +1,4 @@
 src/* usr/share/repeater-START 
-resources/repeater-START.desktop   usr/share/applications
+resources/repeaterstart.desktop   usr/share/applications
 resources/repeaterSTART /usr/bin
 resources/repeaterSTART.svg   usr/share/icons/hicolor/scalable/apps/
