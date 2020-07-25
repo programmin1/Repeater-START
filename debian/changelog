@@ -1,3 +1,10 @@
+repeater-start (0.3.3) unstable; urgency=medium
+ * Geoclue fixes for more recent Linux - locate me button should work now when permission is added.
+ 
+ -- Luke <luke@hearham.live>  Sat, 25 Jul 2020 05:25:00 -0800
+
+
+
 repeater-start (0.3.2) unstable; urgency=medium
  * Improved search, What3words capability.
 
