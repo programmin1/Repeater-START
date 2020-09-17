@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019 Luke Bryan.
+(C) 2019-2020 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -48,7 +48,6 @@ GObject.threads_init()
 Gdk.threads_init()
 
 from threading import Thread
-
 from gi.repository import OsmGpsMap as osmgpsmap
 print( "using library: %s (version %s)" % (osmgpsmap.__file__, osmgpsmap._version))
 
@@ -139,7 +138,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.3.3'
+        self.version = '0.4'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -155,10 +154,20 @@ class UI(Gtk.Window):
         self.PLAYSIZE = Gtk.IconSize.BUTTON
         
         self.mainScreen = Gdk.Screen.get_default()
+        privatetilesapi='https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
+
         self.osm = osmgpsmap.Map(
-            repo_uri='https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg',
-                image_format='jpg'
-        )#user_agent="mapviewer.py/%s" % osmgpsmap._version)
+            repo_uri=privatetilesapi,
+            image_format='jpg',
+        )
+        if os.path.exists(self.userFile('lastPosition.json')):
+            with open(self.userFile('lastPosition.json')) as lastone:
+                lastposition = json.loads(lastone.read())
+                self.osm.set_center_and_zoom(lastposition['lat'],
+                    lastposition['lon'],
+                    lastposition['zoom']
+                )
+        
         osd = osmgpsmap.MapOsd(
                         show_dpad=True,
                         show_zoom=True,
@@ -842,6 +851,13 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.rtllistener.start()
             
     def cleanup(self, obj):
+        stateObj = {
+            'lat': self.renderedLat, 
+            'lon': self.renderedLon,
+            'zoom': self.osm.props.zoom
+        }
+        with open(self.userFile('lastPosition.json'), 'w') as outfile:
+            outfile.write(json.dumps(stateObj))
         if self.rtllistener:
             self.rtllistener.proc.kill()
         Gtk.main_quit()
