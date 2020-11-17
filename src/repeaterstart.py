@@ -477,7 +477,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         os.system('xdg-open https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater):
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
+        if repeater.status:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
+        else:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
         self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
         self.allrepeaters.append(repeater)
 
@@ -694,9 +697,13 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             if repeater.node:
                 lbltext = "%s, %s at %smhz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %smhz"
                 label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign, repeater.freq), xalign=0)
+                if not repeater.status:
+                    label1.set_markup('<s>'+lbltext+'</s>')
             else:
                 lbltext = "%s, %smhz" % (repeater.callsign, repeater.freq)
                 label1 = Gtk.Label(lbltext, xalign=0)
+                if not repeater.status:
+                    label1.set_markup('<s>'+lbltext+'</s>')
         try:
             int(repeater.status)
             linkknown = False
