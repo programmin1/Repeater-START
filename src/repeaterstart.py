@@ -22,6 +22,10 @@ import os.path
 import random
 import subprocess
 import json
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version('Geoclue', '2.0')
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GLib
@@ -43,6 +47,7 @@ from math import pi, sin, cos, sqrt, atan2, radians
 
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
+from SettingsDialog import SettingsDialog
 
 GObject.threads_init()
 Gdk.threads_init()
@@ -152,6 +157,7 @@ class UI(Gtk.Window):
         self.rtllistener = None
         self.playingfreq = None
         self.PLAYSIZE = Gtk.IconSize.BUTTON
+        self.settingsDialog = SettingsDialog(self)
         
         self.mainScreen = Gdk.Screen.get_default()
         privatetilesapi='https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
@@ -167,6 +173,7 @@ class UI(Gtk.Window):
                     lastposition['lon'],
                     lastposition['zoom']
                 )
+        
         
         osd = osmgpsmap.MapOsd(
                         show_dpad=True,
@@ -184,11 +191,6 @@ class UI(Gtk.Window):
         self.osm.layer_add(
                     DummyLayer()
         )
-        #Adding image in the render code causes infinite loop.
-        icon_app_path = '/usr/share/icons/hicolor/scalable/apps/repeaterSTART.svg'
-        if os.path.exists(icon_app_path):
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
-            self.set_icon(pixbuf)
         
         self.displayNodes()
 
@@ -218,19 +220,25 @@ class UI(Gtk.Window):
         home_button.set_tooltip_text('Find my location')
         search_button = Gtk.Button()
         search_button.set_image(Gtk.Image(icon_name='edit-find',
-                      icon_size=21))
+                      icon_size=Gtk.IconSize.LARGE_TOOLBAR))
         search_button.connect('clicked', self.searchToggle_clicked)
         self.search_text = Gtk.Entry()
         self.search_text.connect('activate',self.search_call)
         
         self.help_button = Gtk.Button()
         self.help_button.set_image(Gtk.Image(icon_name='help-browser',
-                      icon_size=21))
+                      icon_size=Gtk.IconSize.LARGE_TOOLBAR))
         self.help_button.connect('clicked', self.help_clicked)
         self.help_about_button = Gtk.Button()
         self.help_about_button.set_image(Gtk.Image(icon_name='help-about',
-                      icon_size=21))
+                      icon_size=Gtk.IconSize.LARGE_TOOLBAR))
         self.help_about_button.connect('clicked', self.helpAbout_clicked)
+        
+        self.pref_button = Gtk.Button()
+        self.pref_button.set_image(Gtk.Image(icon_name="preferences-system",
+                       icon_size=Gtk.IconSize.LARGE_TOOLBAR))
+        self.pref_button.connect('clicked', self.pref_clicked)
+                       
         
         home_button.connect('clicked', self.home_clicked)
         self.back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
@@ -263,9 +271,16 @@ class UI(Gtk.Window):
         hbox.pack_start(self.back_button, False, True, 0)
         hbox.pack_start(self.cache_button, False, True, 0)
         hbox.pack_start(self.add_button, False, True, 0)
+        hbox.pack_start(self.pref_button, False, True, 0)
         hbox.pack_start(self.help_button, False, True, 0)
         hbox.pack_start(self.help_about_button, False, True, 0)
 
+        #Adding image in the render code causes infinite loop.
+        icon_app_path = '/usr/share/icons/hicolor/scalable/apps/repeaterSTART.svg'
+        if os.path.exists(icon_app_path):
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
+            self.set_icon(pixbuf)
+            
         #add ability to test custom map URIs
         #ex = Gtk.Expander(label="<b>Display Options</b>")
         #ex.props.use_markup = True
@@ -326,19 +341,17 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.back_button.hide()
             self.cache_button.hide()
             self.add_button.hide()
+            self.pref_button.hide()
             self.help_button.hide()
             self.help_about_button.hide()
-            #self.listbox.hide()
-            #self.searchlistbox.show()
         else:
             self.search_text.hide()
             self.back_button.show()
             self.cache_button.show()
             self.add_button.show()
+            self.pref_button.show()
             self.help_button.show()
             self.help_about_button.show()
-            #self.searchlistbox.hide()
-            #self.listbox.show()
     
     def search_call(self, widget):
         srctext = widget.get_text()
@@ -477,12 +490,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         os.system('xdg-open https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater):
-        if repeater.status:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
-        else:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
-        self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
-        self.allrepeaters.append(repeater)
+        if(float(repeater.freq) >= self.settingsDialog.getMinFilter() and
+           float(repeater.freq) <= self.settingsDialog.getMaxFilter() ):
+            if repeater.isDown():
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
+            else:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
+            self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
+            self.allrepeaters.append(repeater)
 
 
     def disable_cache_toggled(self, btn):
@@ -593,6 +608,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             'Your downloaded repeater database was updated:\n'+changed)
         response = dlg.run()
         dlg.destroy()
+    
+    def pref_clicked(self,button):
+        self.settingsDialog.show()
         
     def getlocation(self):
         self.lastLat = self.osm.props.latitude
@@ -663,22 +681,27 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     round(self.osm.props.longitude, 4)
                 )
             )
-            # cursor lat,lon = self.osm.get_event_location(event).get_degrees()
-            lat, lon = self.osm.props.latitude, self.osm.props.longitude
-            maxkm = 500
-            self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
-            self.clearRows()
-            self.playBtns = []
-            added = 0
-            for item in self.allrepeaters:
-                distance = item.distance(lat,lon)
-                if( distance < maxkm):
-                    self.addToList(item, lat,lon)
-                added += 1
-                if added > 100: #Listing excessively many makes it laggy, eg New England repeaters.
-                    break
-            self.listbox.show_all()
+            self.refreshListing()
             print('time: %s' % (time.time()  - t))
+    
+    def refreshListing(self):
+        # cursor lat,lon = self.osm.get_event_location(event).get_degrees()
+        lat, lon = self.osm.props.latitude, self.osm.props.longitude
+        maxkm = 500
+        self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
+        self.clearRows()
+        self.playBtns = []
+        added = 0
+        for item in self.allrepeaters:
+            distance = item.distance(lat,lon)
+            if( distance < maxkm and 
+              float(item.freq) >= self.settingsDialog.getMinFilter() and
+              float(item.freq) <= self.settingsDialog.getMaxFilter() ):
+                self.addToList(item, lat,lon)
+            added += 1
+            if added > 100: #Listing excessively many makes it laggy, eg New England repeaters.
+                break
+        self.listbox.show_all()
     
     def addToList(self, repeater, lat, lon):
         row = Gtk.ListBoxRow()
@@ -696,8 +719,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         else:
             if repeater.node:
                 lbltext = "%s, %s at %smhz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %smhz"
-                label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign, repeater.freq), xalign=0)
-                if not repeater.status:
+                lbltext = lbltext % (repeater.node, repeater.callsign, repeater.freq)
+                label1 = Gtk.Label(lbltext, xalign=0)
+                if repeater.isDown():
                     label1.set_markup('<s>'+lbltext+'</s>')
             else:
                 lbltext = "%s, %smhz" % (repeater.callsign, repeater.freq)
@@ -742,10 +766,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         vbox.pack_start(innerhbox, True, True, 0)
         vbox.pack_start(label3, True, True, 5)
         km = repeater.distance(lat,lon)
-        if self.unit == 'mi':
+        if self.settingsDialog.getUnit() == 'mi':
             km = km*.62137119
         
-        distlbl = Gtk.Label( '%s %s ' % ( int(km*10)/10, self.unit ))
+        distlbl = Gtk.Label( '%s %s ' % ( int(km*10)/10, self.settingsDialog.getUnit() ))
         playbtn = Gtk.Button()
         playbtn.set_image(Gtk.Image(icon_name='media-playback-start',
                       icon_size=self.PLAYSIZE))
