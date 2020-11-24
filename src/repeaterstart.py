@@ -143,7 +143,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.4'
+        self.version = '0.5'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -246,7 +246,13 @@ class UI(Gtk.Window):
         
         self.cache_button = Gtk.Button('Cache')
         self.cache_button.connect('clicked', self.cache_clicked)
-        self.add_button = Gtk.Button('Add Repeater')
+        if self.mainScreen.get_width() < 800:
+            #Just room for icon on Librem/phone.
+            self.add_button = Gtk.Button()
+            self.add_button.set_image(Gtk.Image(icon_name="list-add",
+                       icon_size=Gtk.IconSize.LARGE_TOOLBAR))
+        else:
+            self.add_button = Gtk.Button('Add Repeater')
         self.add_button.connect('clicked', self.add_repeater_clicked)
         
         overlay = Gtk.Overlay()
