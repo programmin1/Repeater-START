@@ -1,3 +1,9 @@
+repeater-start (0.6) unstable; urgency=medium
+ * Search for or view Maidenhead-grid-square.
+ * New Nominatim.openstreetmap.org api is used.
+ 
+ -- Luke <luke@hearham.live>  Sun, Dec 27 2020 22:30:00 -0800
+
 repeater-start (0.5) unstable; urgency=medium
  * Inoperable repeaters are now shown in red.
  * Settings dialog for frequency filter and length units.

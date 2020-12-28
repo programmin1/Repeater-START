@@ -48,6 +48,7 @@ from math import pi, sin, cos, sqrt, atan2, radians
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from MaidenheadLocator import locatorToLatLng, latLongToLocator
 
 GObject.threads_init()
 Gdk.threads_init()
@@ -143,7 +144,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.5'
+        self.version = '0.6'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -362,8 +363,12 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def search_call(self, widget):
         srctext = widget.get_text()
         try:
+            gridsquare = locatorToLatLng(srctext)
+            if gridsquare:
+                self.osm.set_center(gridsquare['lat'], gridsquare['lng'])
+                
             #What3Words address has 2 . in it:
-            if re.match( r".*\..*\..*", srctext):
+            elif re.match( r".*\..*\..*", srctext):
                 req = urllib.request.Request(
                     'https://hearham.com/api/whatthreewords/v1?words=%s' % (urllib.parse.quote(srctext),), 
                     data=None,
@@ -376,12 +381,12 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 if not objs:
                     self.latlon_entry.set_text('Invalid what3words.com address.')
                 else:
-                    #print(objs)
                     self.osm.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
-                    self.latlon_entry.set_text('Map Center: %s : %s' % ( objs['map'], objs['nearestPlace'] ) )
+                    self.latlon_entry.set_text('Map Center: %s %s : %s' % ( latLongToLocator(objs['coordinates']['lat'], objs['coordinates']['lng']), objs['map'], objs['nearestPlace'] ) )
             else:
+                # Use new query format https://github.com/osm-search/Nominatim/issues/2121 
                 req = urllib.request.Request(
-                    'https://nominatim.openstreetmap.org/search/%s?format=json&limit=50' % (urllib.parse.quote(srctext),), 
+                    'https://nominatim.openstreetmap.org/search/?q=%s&format=json&limit=50' % (urllib.parse.quote(srctext),), 
                     data=None,
                     headers={
                         'User-Agent': 'Repeater-START/'+self.version
@@ -680,9 +685,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.renderedLon = self.osm.props.longitude
 
             t = time.time()
-            text = 'Map Center: latitude %s longitude %s' if self.mainScreen.get_width() > 800 else 'lat: %s lon: %s'
+            text = 'Map Center: %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
             self.latlon_entry.set_text(
                 text % (
+                    latLongToLocator(self.renderedLat, self.renderedLon),
                     round(self.osm.props.latitude, 4),
                     round(self.osm.props.longitude, 4)
                 )
