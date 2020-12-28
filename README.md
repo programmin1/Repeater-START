@@ -9,7 +9,7 @@ You can download this program for recent Ubuntu and Debian based systems at http
 Simply download and open the file, select install. OR, if you prefer command line:
 
 ```
-sudo dpkg -i ./repeater-start_0.4_all.deb
+sudo dpkg -i ./repeater-start_0.5_all.deb
 ```
 
 
