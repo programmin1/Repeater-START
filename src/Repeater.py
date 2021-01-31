@@ -12,4 +12,4 @@ class Repeater:
         return earthR*c
         
     def isDown(self):
-        return not self.status or 'DOWN' == self.status
+        return not self.status or 'DOWN' == self.status or 'OFFLINE' == self.status
