@@ -366,6 +366,46 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             gridsquare = locatorToLatLng(srctext)
             if gridsquare:
                 self.osm.set_center(gridsquare['lat'], gridsquare['lng'])
+            
+            #Search for number - internet node no. or frequency
+            elif re.match(r"(\d)*\.?(\d)*$", srctext):
+                number = float(srctext)
+                self.clearRows()
+                lat, lon = self.osm.props.latitude, self.osm.props.longitude
+             
+                for repeater in self.allrepeaters:
+                    km = repeater.distance(lat,lon)
+                    if self.settingsDialog.getUnit() == 'mi':
+                        km = km*.62137119
+                    freq = float(repeater.freq)
+                    off = freq + float(repeater.offset)
+                    if repeater.freq == number or number == off:
+                        row = Gtk.ListBoxRow()
+                        row.longitude = float(repeater.lon)
+                        row.latitude = float(repeater.lat)
+                        # ^ for double click activate
+                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                        #print(repeater.callsign, repeater.freq, off, km)
+                        mainlbl = Gtk.Label("%s (%.3f/%.3f) (%.2f%s)" % (
+                              repeater.callsign, freq, off, km, self.settingsDialog.getUnit() ), xalign=0)
+                        hbox.pack_start(mainlbl,True,True,0)
+                        row.add(hbox)
+                        self.listbox.add(row)
+                        self.searchRows.append(row)
+                    elif repeater.node == srctext:
+                        row = Gtk.ListBoxRow()
+                        row.longitude = float(repeater.lon)
+                        row.latitude = float(repeater.lat)
+                        # ^ for double click activate
+                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                        mainlbl = Gtk.Label("%s node %s (%.2f%s)" % (
+                            repeater.callsign, repeater.node, km, self.settingsDialog.getUnit()
+                        ),xalign=0)
+                        hbox.pack_start(mainlbl,True,True,0)
+                        row.add(hbox)
+                        self.listbox.add(row)
+                        self.searchRows.append(row)
+                self.listbox.show_all()
                 
             #What3Words address has 2 . in it:
             elif re.match( r".*\..*\..*", srctext):
@@ -476,6 +516,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.allrepeaters = []
         irlpfile = self.userFile('irlp.txt')
         repeatersfile = self.userFile('repeaters.json')
+        #TODO IRLP is now updated regularly in main json could be combined:
         if os.path.exists(irlpfile):
             with open(irlpfile) as repfile:
                 for line in repfile:
@@ -849,17 +890,6 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             if cnt > 5:
                 break
         self.listbox.show_all()
-            #if distance < near:
-            #    nearest = item
-            #    near = distance
-        # print( "nearest: "+str(near))
-        # print( nearest.node )
-        # print( nearest.callsign )
-        # print( nearest.state )
-        # print( nearest.freq )
-        # print( nearest.owner )
-        # print( nearest.url )
-        # print( '================' )
 
         left    = event.button == 1 and state == 0
         middle  = event.button == 2 or (event.button == 1 and state & Gdk.ModifierType.SHIFT_MASK)
