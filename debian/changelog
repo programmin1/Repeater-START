@@ -1,3 +1,9 @@
+repeater-start (0.7) unstable; urgency=medium
+ * Search for frequency/internet node number.
+ * Fix display of red repeater icon for OFFLINE IRLP.
+ 
+ -- Luke <luke@hearham.live>  Sun, Jan 31 2021 12:00:00 -0800
+
 repeater-start (0.6) unstable; urgency=medium
  * Search for or view Maidenhead-grid-square.
  * New Nominatim.openstreetmap.org api is used.

@@ -144,7 +144,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.6'
+        self.version = '0.7'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -372,6 +372,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 number = float(srctext)
                 self.clearRows()
                 lat, lon = self.osm.props.latitude, self.osm.props.longitude
+                noneFound = True;
              
                 for repeater in self.allrepeaters:
                     km = repeater.distance(lat,lon)
@@ -392,6 +393,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         row.add(hbox)
                         self.listbox.add(row)
                         self.searchRows.append(row)
+                        noneFound = False
                     elif repeater.node == srctext:
                         row = Gtk.ListBoxRow()
                         row.longitude = float(repeater.lon)
@@ -405,6 +407,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         row.add(hbox)
                         self.listbox.add(row)
                         self.searchRows.append(row)
+                        noneFound = False
+                if noneFound:
+                    row = Gtk.ListBoxRow()
+                    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                    mainlbl = Gtk.Label("Sorry, nothing found for that frequency or IRLP node number",xalign=0)
+                    hbox.pack_start(mainlbl,True,True,0)
+                    row.add(hbox)
+                    self.listbox.add(row)
+                    self.searchRows.append(row)
                 self.listbox.show_all()
                 
             #What3Words address has 2 . in it:
@@ -657,7 +668,8 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             Gtk.ButtonsType.OK,
             'Repeater-START v'+self.version+'\n'+
             'Showing The Amateur Repeaters Tool - The only open-source Linux desktop repeater app utilizing the open-data repeater database.\n\n'+
-            'Your downloaded repeater database was updated:\n'+changed)
+            'Your downloaded repeater database was updated:\n'+changed+
+            '\nFor support/questions please use the Github issues or contact@hearham.live.')
         response = dlg.run()
         dlg.destroy()
     
