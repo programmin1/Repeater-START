@@ -3,13 +3,13 @@ Repeater START - Showing The Amateur Repeaters Tool
 
 This tool displays all the repeaters available through the repeater listing at https://hearham.com/repeaters
 
-Support for searching for a Maidenhead-grid-square coordinate, WhatThreeWords Position, a mountain or peak on Openstreetmap, or finding your current location, is included.
+Support for searching for a Maidenhead-grid-square coordinate, WhatThreeWords Position, a mountain or peak on Openstreetmap, repeater frequency/IRLP node, or finding your current location, is included.
 
 You can download this program for recent Ubuntu and Debian based systems at https://sourceforge.net/projects/repeater-start/
 Simply download and open the file, select install. OR, if you prefer command line:
 
 ```
-sudo dpkg -i ./repeater-start_0.6_all.deb
+sudo dpkg -i ./repeater-start_0.7_all.deb
 ```
 
 
