@@ -144,7 +144,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.7'
+        self.version = '0.7.1'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -185,6 +185,8 @@ class UI(Gtk.Window):
         if os.path.exists(icon_app_path):
             pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
             surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
+        self.towerDownPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
+        self.towerPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
         
         self.osm.layer_add(
                     osd
@@ -320,8 +322,8 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.vbox.pack_end(self.latlon_entry, False, True, 0)
         self.vbox.pack_end(hbox, False, True, 0)
 
-        GObject.timeout_add(500, self.print_tiles)
-        GObject.timeout_add(1000, self.downloadBackground)
+        GLib.timeout_add(500, self.print_tiles)
+        GLib.timeout_add(1000, self.downloadBackground)
         self.bgdl = None
 
         self.listbox = Gtk.ListBox()
@@ -556,9 +558,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         if(float(repeater.freq) >= self.settingsDialog.getMinFilter() and
            float(repeater.freq) <= self.settingsDialog.getMaxFilter() ):
             if repeater.isDown():
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
+                pixbuf = self.towerDownPic
             else:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
+                pixbuf = self.towerPic
             self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
             self.allrepeaters.append(repeater)
 
@@ -607,9 +609,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', self.userFile('update.response'))
             self.checkUpdate.start()
             #Call again 10m later
-            GObject.timeout_add(600000, self.downloadBackground)
+            GLib.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):
-                GObject.timeout_add(10000, self.displayNodes)
+                GLib.timeout_add(10000, self.displayNodes)
         else:
             if self.bgdl.finished:
                 self.displayNodes()
@@ -685,7 +687,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.osm.set_center_and_zoom(location.get_property('latitude'), location.get_property('longitude'), 12)
         except GLib.Error as err:
             print(err)
-            GObject.idle_add(self.privacySettingsOpen)
+            GLib.idle_add(self.privacySettingsOpen)
             
     
     def privacySettingsOpen(self):

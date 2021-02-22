@@ -1,3 +1,8 @@
+repeater-start (0.7.1) unstable; urgency=medium
+ * Fix very slow startup and reinit of all the icons.
+ 
+ -- Luke <luke@hearham.live>  Sun, Feb 21 2021 21:22:00 -0800
+
 repeater-start (0.7) unstable; urgency=medium
  * Search for frequency/internet node number.
  * Fix display of red repeater icon for OFFLINE IRLP.
