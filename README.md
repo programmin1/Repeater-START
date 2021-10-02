@@ -26,3 +26,7 @@ Then just run "python3 repeaterstart.py"
 Android:
 
 Android port is available on FDroid! Please see [here](https://howtotrainyourrobot.com/announcing-repeater-start-amateur-radio-app-for-android/) for details.
+
+
+[![Liberapay](https://img.shields.io/liberapay/patrons/deepdaikon.svg?logo=liberapay)](https://liberapay.com/Programmin/)
+[<img src="https://www.ko-fi.com/img/githubbutton_sm.svg" alt="Ko-fi" height="20">](https://ko-fi.com/hearham)
