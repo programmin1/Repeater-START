@@ -25,7 +25,8 @@ import json
 
 import gi
 gi.require_version("Gtk", "3.0")
-gi.require_version('Geoclue', '2.0')
+#gi.require_version('Geoclue', '2.0') none for Windows. :(
+import tempfile #windows
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GLib
@@ -38,7 +39,7 @@ import re
 import datetime
 from gi.repository import cairo
 
-from gi.repository import Geoclue
+#from gi.repository import Geoclue
 import math
 import shutil
 import urllib.request
@@ -50,8 +51,8 @@ from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 
-GObject.threads_init()
-Gdk.threads_init()
+#GObject.threads_init()
+#Gdk.threads_init()
 
 from threading import Thread
 from gi.repository import OsmGpsMap as osmgpsmap
@@ -91,7 +92,7 @@ class BackgroundDownload(Thread):
         self.success = False
     def run(self):
         try:
-            tmpfile = '/tmp/output'+str(int(time.time()))+str(random.random())
+            tmpfile = tempfile.gettempdir()+'/output'+str(int(time.time()))+str(random.random())
             urllib.request.urlretrieve(self.url, tmpfile)
             shutil.move( tmpfile, self.filename )
             self.finished = True
@@ -149,7 +150,7 @@ class UI(Gtk.Window):
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
         self.set_title('RepeaterSTART GPS Mapper')
-        self.vbox = Gtk.VBox(False, 0)
+        self.vbox = Gtk.VBox()#False, 0)
         self.add(self.vbox)
         self.unit = 'mi' #or km
         self.renderedLat = None
@@ -168,28 +169,28 @@ class UI(Gtk.Window):
             image_format='jpg',
         )
         if os.path.exists(self.userFile('lastPosition.json')):
-            with open(self.userFile('lastPosition.json')) as lastone:
-                lastposition = json.loads(lastone.read())
-                self.osm.set_center_and_zoom(lastposition['lat'],
-                    lastposition['lon'],
-                    lastposition['zoom']
-                )
+             with open(self.userFile('lastPosition.json')) as lastone:
+                 lastposition = json.loads(lastone.read())
+                 if lastposition['lat']:
+                     self.osm.set_center_and_zoom(lastposition['lat'],
+                         lastposition['lon'],
+                         lastposition['zoom']
+                     )
+        #Now map-source required or it gets some mysterious null pointers and render issue:
+        self.osm.set_property("map-source", osmgpsmap.MapSource_t.LAST)
+        self.osm.set_property("repo-uri", privatetilesapi)
         
-        
-        osd = osmgpsmap.MapOsd(
-                        show_dpad=True,
-                        show_zoom=True,
-                        show_crosshair=True)
-        
-        icon_app_path = '/usr/share/icons/hicolor/scalable/apps/repeaterSTART.svg'
+        icon_app_path = '../resources/repeaterSTART.svg'
         if os.path.exists(icon_app_path):
             pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
             surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
         self.towerDownPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
         self.towerPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
         
-        self.osm.layer_add(
-                    osd
+        self.osm.layer_add(osmgpsmap.MapOsd(
+                        show_dpad=True,
+                        show_zoom=True,
+                        show_crosshair=True)
         )
         self.osm.layer_add(
                     DummyLayer()
@@ -216,11 +217,12 @@ class UI(Gtk.Window):
 
         self.latlon_entry = Gtk.Entry()
 
-        home_button = Gtk.Button()
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('locateme.svg',width=21,height=21,preserve_aspect_ratio=True)
-        GoImg = Gtk.Image.new_from_pixbuf(pixbuf)
-        home_button.set_image(GoImg)
-        home_button.set_tooltip_text('Find my location')
+        #No Geoclue Windows!
+        # home_button = Gtk.Button()
+        # pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('locateme.svg',width=21,height=21,preserve_aspect_ratio=True)
+        # GoImg = Gtk.Image.new_from_pixbuf(pixbuf)
+        # home_button.set_image(GoImg)
+        # home_button.set_tooltip_text('Find my location')
         search_button = Gtk.Button()
         search_button.set_image(Gtk.Image(icon_name='edit-find',
                       icon_size=Gtk.IconSize.LARGE_TOOLBAR))
@@ -243,7 +245,7 @@ class UI(Gtk.Window):
         self.pref_button.connect('clicked', self.pref_clicked)
                        
         
-        home_button.connect('clicked', self.home_clicked)
+        #home_button.connect('clicked', self.home_clicked)
         self.back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
         self.back_button.connect('clicked', self.back_clicked)
         
@@ -272,9 +274,10 @@ class UI(Gtk.Window):
         self.vbox.pack_start(overlay, True, True, 0)
         overlay.add_overlay(top_container)
         overlay.set_overlay_pass_through(top_container,True)
+        
         #overlay.set_overlay_pass_through(mapboxlink,False)
-        hbox = Gtk.HBox(False, 0)
-        hbox.pack_start(home_button, False, True, 0)
+        hbox = Gtk.HBox()#False, 0)
+        #hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(search_button, False, True, 0)
         hbox.pack_start(self.search_text, False, True, 0)
         hbox.pack_start(self.back_button, False, True, 0)
@@ -297,24 +300,6 @@ class UI(Gtk.Window):
         self.repouri_entry = Gtk.Entry()
         self.image_format_entry = Gtk.Entry()
         self.image_format_entry.set_text(self.osm.props.image_format)
-
-        
-        lbl = Gtk.Label(
-"""
-Enter an repository URL to fetch map tiles from in the box below. Special metacharacters may be included in this url
-
-<i>Metacharacters:</i>
-\t#X\tMax X location
-\t#Y\tMax Y location
-\t#Z\tMap zoom (0 = min zoom, fully zoomed out)
-\t#S\tInverse zoom (max-zoom - #Z)
-\t#Q\tQuadtree encoded tile (qrts)
-\t#W\tQuadtree encoded tile (1234)
-\t#U\tEncoding not implemeted
-\t#R\tRandom integer, 0-4""")
-        lbl.props.xalign = 0
-        lbl.props.use_markup = True
-        lbl.props.wrap = True
 
         #ex.add(vb)
         self.show_tooltips = False
@@ -342,7 +327,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.vbox.pack_start(scrolled, True, True, 0)
         self.GTKListRows = []
         self.playBtns = []
-        GObject.idle_add(self.updateMessage)
+        #GObject.idle_add(self.updateMessage)
         
     def setViews(self):
         if self.mode == 'search':
@@ -500,7 +485,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         updateinfo['message'])
                     response = dlg.run()
                     if response == Gtk.ResponseType.YES:
-                        os.system('xdg-open '+updateinfo['link'])
+                        os.system('start '+updateinfo['link'])
                     dlg.destroy()
                         
             except:
@@ -548,11 +533,11 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             print('WARNING REPEATERS FILE NOT LOADED')
     
     def credit_mapbox(self, obj, obj2):
-        os.system('xdg-open https://www.mapbox.com/about/maps/')
+        os.system('start https://www.mapbox.com/about/maps/')
     def credit_osm(self, obj, obj2):
-        os.system('xdg-open http://www.openstreetmap.org/about/')
+        os.system('start http://www.openstreetmap.org/about/')
     def improvement_link(self, obj, obj2):
-        os.system('xdg-open https://www.mapbox.com/map-feedback/')
+        os.system('start https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater):
         if(float(repeater.freq) >= self.settingsDialog.getMinFilter() and
@@ -574,24 +559,24 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def on_show_tooltips_toggled(self, btn):
         self.show_tooltips = btn.props.active
 
-    def load_map_clicked(self, button):
-        uri = self.repouri_entry.get_text()
-        format = self.image_format_entry.get_text()
-        if uri and format:
-            if self.osm:
-                #remove old map
-                self.vbox.remove(self.osm)
-            try:
-                self.osm = osmgpsmap.Map(
-                    repo_uri=uri,
-                    image_format=format
-                )
-            except Exception:
-                print( "ERROR:" )
-                self.osm = osm.Map()
-            self.vbox.pack_start(self.osm, True, True, 0)
-            #self.osm.connect('button_release_event', self.map_clicked)
-            self.osm.show()
+    # def load_map_clicked(self, button):
+    #     uri = self.repouri_entry.get_text()
+    #     format = self.image_format_entry.get_text()
+    #     if uri and format:
+    #         if self.osm:
+    #             #remove old map
+    #             self.vbox.remove(self.osm)
+    #         try:
+    #             self.osm = osmgpsmap.Map(
+    #                 repo_uri=uri,
+    #                 image_format=format
+    #             )
+    #         except Exception:
+    #             print( "ERROR:" )
+    #             self.osm = osm.Map()
+    #         self.vbox.pack_start(self.osm, True, True, 0)
+    #         #self.osm.connect('button_release_event', self.map_clicked)
+    #         self.osm.show()
 
     def print_tiles(self):
         if self.osm.props.tiles_queued != 0:
@@ -606,7 +591,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', self.userFile('repeaters.json'))
             self.hearhamdl.start()
             
-            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', self.userFile('update.response'))
+            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/windows', self.userFile('update.response'))
             self.checkUpdate.start()
             #Call again 10m later
             GLib.timeout_add(600000, self.downloadBackground)
@@ -635,9 +620,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def zoom_out_clicked(self, button):
         self.osm.set_zoom(self.osm.props.zoom - 1)
 
-    def home_clicked(self, button):
-        #self.getlocation() #Freezes up, odd.
-        GObject.timeout_add(1, self.getlocation)
+    # def home_clicked(self, button):
+    #     #self.getlocation() #Freezes up, odd.
+    #     GObject.timeout_add(1, self.getlocation)
         
     def back_clicked(self, button):
         self.osm.set_center_and_zoom(self.lastLat, self.lastLon, 12)
@@ -678,16 +663,16 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def pref_clicked(self,button):
         self.settingsDialog.show()
         
-    def getlocation(self):
-        self.lastLat = self.osm.props.latitude
-        self.lastLon = self.osm.props.longitude
-        try:
-            clue = Geoclue.Simple.new_sync('repeaterstart',Geoclue.AccuracyLevel.EXACT,None)
-            location = clue.get_location()
-            self.osm.set_center_and_zoom(location.get_property('latitude'), location.get_property('longitude'), 12)
-        except GLib.Error as err:
-            print(err)
-            GLib.idle_add(self.privacySettingsOpen)
+    # def getlocation(self):
+    #     self.lastLat = self.osm.props.latitude
+    #     self.lastLon = self.osm.props.longitude
+    #     try:
+    #         clue = Geoclue.Simple.new_sync('repeaterstart',Geoclue.AccuracyLevel.EXACT,None)
+    #         location = clue.get_location()
+    #         self.osm.set_center_and_zoom(location.get_property('latitude'), location.get_property('longitude'), 12)
+    #     except GLib.Error as err:
+    #         print(err)
+    #         GLib.idle_add(self.privacySettingsOpen)
             
     
     def privacySettingsOpen(self):
@@ -731,11 +716,12 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         )
         
     def add_repeater_clicked(self, button):
-        os.system('xdg-open "https://hearham.com/repeaters/add?lat=%s&lon=%s"' % (self.osm.props.latitude, self.osm.props.longitude) )
+        os.system('start https://hearham.com/repeaters/add?lat=%s&lon=%s' % (self.osm.props.latitude, self.osm.props.longitude) )
 
     def on_map_change(self, event):
         if self.renderedLat != self.osm.props.latitude or self.renderedLon != self.osm.props.longitude:
             #Center changed.
+            print(self.osm.props.latitude)
             self.renderedLat = self.osm.props.latitude
             self.renderedLon = self.osm.props.longitude
 
@@ -821,14 +807,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         label2.set_ellipsize(Pango.EllipsizeMode.END)
         label3.set_ellipsize(Pango.EllipsizeMode.END)
         if self.mainScreen.get_width() < 800:
-            label2.modify_font(Pango.font_description_from_string("Ubuntu 10"))
-            label3.modify_font(Pango.font_description_from_string("Ubuntu 10"))
+            label2.modify_font(Pango.font_description_from_string("Segoe UI 10"))
+            label3.modify_font(Pango.font_description_from_string("Segoe UI 10"))
         
         if self.mainScreen.get_width() < 800:
             #mobile
-            label1.modify_font(Pango.font_description_from_string("Ubuntu Bold 12"))
+            label1.modify_font(Pango.font_description_from_string("Segoe UI Bold 12"))
         else:
-            label1.modify_font(Pango.font_description_from_string("Ubuntu Bold 22"))
+            label1.modify_font(Pango.font_description_from_string("Segoe UI Bold 22"))
         vbox.pack_start(label1, True, True, 5)
         vbox.pack_start(innerhbox, True, True, 0)
         vbox.pack_start(label3, True, True, 5)
@@ -954,6 +940,6 @@ if __name__ == "__main__":
     u = UI()
     u.show_all()
     u.setViews()
-    if os.name == "nt": Gdk.threads_enter()
+    #if os.name == "nt": Gdk.threads_enter()
     Gtk.main()
-    if os.name == "nt": Gdk.threads_leave()
+    #if os.name == "nt": Gdk.threads_leave()
