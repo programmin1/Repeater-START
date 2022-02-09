@@ -23,6 +23,24 @@ This is written in Python for GTK+. If you run it you should have:
 
 Then just run "python3 repeaterstart.py"
 
+Windows:
+
+Much of this will run on Windows. Check out the "windows" branch which has Geoclue locate-me button removed, and runs in msys2.
+
+```
+pacman -S mingw-w64-x86_64-osm-gps-map
+pacman -S python3
+pacman -S mingw-w64-x86_64-python-gobject
+```
+
+are requirements, for the map library and Python. Run with mingw python in the msys2 console:
+
+```
+cd src
+/mingw64/bin/python3.exe ./repeaterstart.py
+```
+
+
 Android:
 
 Android port is available on FDroid! Please see [here](https://howtotrainyourrobot.com/announcing-repeater-start-amateur-radio-app-for-android/) for details.
