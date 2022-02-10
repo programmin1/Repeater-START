@@ -38,10 +38,16 @@ import random
 import re
 import datetime
 from gi.repository import cairo
+from gi.repository import Gio #hidden req. Osm?
 
 #from gi.repository import Geoclue
 import math
 import shutil
+#import ssl
+#context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+#context.load_cert_chain('certifi/cacert.pem')
+import certifi
+import urllib
 import urllib.request
 import urllib.parse
 from math import pi, sin, cos, sqrt, atan2, radians
@@ -55,6 +61,7 @@ from MaidenheadLocator import locatorToLatLng, latLongToLocator
 #Gdk.threads_init()
 
 from threading import Thread
+gi.require_version('OsmGpsMap', '1.0')
 from gi.repository import OsmGpsMap as osmgpsmap
 print( "using library: %s (version %s)" % (osmgpsmap.__file__, osmgpsmap._version))
 
@@ -97,9 +104,9 @@ class BackgroundDownload(Thread):
             shutil.move( tmpfile, self.filename )
             self.finished = True
             self.success = True
-        except urllib.error.URLError:
-            print("offline?")
-            self.finished = True
+        # except urllib.error.URLError:
+        #     print("offline?")
+        #     self.finished = True
         except urllib.error.HTTPError:
             print("Failed to fetch.")
             self.finished = True
@@ -414,7 +421,7 @@ class UI(Gtk.Window):
                         'User-Agent': 'Repeater-START/'+self.version
                     }
                 )
-                f = urllib.request.urlopen(req)
+                f = urllib.request.urlopen(req,cafile=certifi.where())
                 objs = json.loads(f.read().decode('utf-8'))
                 if not objs:
                     self.latlon_entry.set_text('Invalid what3words.com address.')
@@ -430,7 +437,7 @@ class UI(Gtk.Window):
                         'User-Agent': 'Repeater-START/'+self.version
                     }
                 )
-                f = urllib.request.urlopen(req)
+                f = urllib.request.urlopen(req,cafile=certifi.where())
                 objs = json.loads(f.read().decode('utf-8'))
                 self.clearRows()
                 if len(objs) == 0:
