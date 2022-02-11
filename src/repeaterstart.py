@@ -16,12 +16,27 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program; if not, see <http://www.gnu.org/licenses/>.
 """
-
+    
 import sys
 import os.path
 import random
 import subprocess
 import json
+
+import os
+if getattr(sys, 'frozen', False):
+    os.environ['GIO_EXTRA_MODULES'] = os.path.join(sys._MEIPASS, 'lib', 'gio', 'modules')
+    print(os.environ['GIO_EXTRA_MODULES'])
+    
+import certifi
+import encodings.idna
+if getattr(sys, 'frozen', False):
+    import ssl
+    #if ssl.get_default_verify_paths().cafile is None:
+    #print('SSL '+certifi.where())
+    os.environ['SSL_CERT_FILE'] = os.path.join(sys._MEIPASS, 'certifi', 'cacert.pem')
+    print(os.environ['SSL_CERT_FILE'])
+        
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -30,6 +45,7 @@ import tempfile #windows
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GLib
+from gi.repository import Gio
 from gi.repository import GdkPixbuf
 from gi.repository import GObject
 from gi.repository import Pango
@@ -43,10 +59,6 @@ from gi.repository import Gio #hidden req. Osm?
 #from gi.repository import Geoclue
 import math
 import shutil
-#import ssl
-#context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-#context.load_cert_chain('certifi/cacert.pem')
-import certifi
 import urllib
 import urllib.request
 import urllib.parse

@@ -3,12 +3,33 @@
 
 block_cipher = None
 
+binaries = [
+    ('C:/msys64/mingw64/lib/gio/modules/libgiognomeproxy.dll', 'lib/gio/modules'),
+    ('C:/msys64/mingw64/lib/gio/modules/libgiolibproxy.dll', 'lib/gio/modules'),
+    ('C:/msys64/mingw64/lib/gio/modules/libgiognutls.dll', 'lib/gio/modules'),
+    ('C:/msys64/mingw64/lib/gio/modules/libgioopenssl.dll', 'lib/gio/modules'),
+    # These should be picked up by dependency analysis of the above modules, but don't seem to be...
+    ('C:/msys64/mingw64/bin/libgnutls-30.dll', '.'),
+    ('C:/msys64/mingw64/bin/libintl-8.dll', '.'),
+    ('C:/msys64/mingw64/bin/libproxy-1.dll', '.'),
+]
+hiddenimports = []
+datas = [
+     ('C:/msys64/mingw64/lib/gio/modules/giomodule.cache', 'lib/gio/modules'),
+    # Collect data (for when code is fixed not to assume current working directory)
+    ('src/locateme.svg', '.'),
+    ('src/mapbox.svg', '.'),
+    ('src/signaltower.svg', '.'),
+    ('src/signaltowerdown.svg', '.'),
+    ('src/SettingsDialog.glade', '.'),
+    ('src/README-WINDOWS.TXT', '.') 
+]
 
 a = Analysis(['src/repeaterstart.py'],
              pathex=[],
-             binaries=[],
-             datas=[],
-             hiddenimports=[],
+             binaries=binaries,
+             datas=datas,
+             hiddenimports=hiddenimports,
              hookspath=['./extra-hooks/'],
              hooksconfig={},
              runtime_hooks=[],
@@ -29,7 +50,7 @@ exe = EXE(pyz,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
-          console=True,
+          console=False,
           disable_windowed_traceback=False,
           target_arch=None,
           codesign_identity=None,
