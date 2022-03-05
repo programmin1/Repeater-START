@@ -10,3 +10,4 @@ Categories=Education;Science;GTK;GNOME;Utility;
 Keywords=Maps;
 DBusActivatable=true
 X-Geoclue-Reason=Allows you to look up nearby amateur radio repeaters.
+X-Purism-FormFactor=Workstation;Mobile;

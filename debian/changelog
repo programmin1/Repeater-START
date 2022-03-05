@@ -1,3 +1,8 @@
+repeater-start (0.7.2) unstable; urgency=medium
+ * Fix a null grey maps issue on some systems and icon placement when installed on Librem.
+ 
+ -- Luke <luke@hearham.live>  Fri, Mar 4 2022 22:26:00 -0800
+
 repeater-start (0.7.1) unstable; urgency=medium
  * Fix very slow startup and reinit of all the icons.
  

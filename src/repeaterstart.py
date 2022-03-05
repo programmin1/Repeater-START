@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2020 Luke Bryan.
+(C) 2019-2022 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -59,18 +59,13 @@ print( "using library: %s (version %s)" % (osmgpsmap.__file__, osmgpsmap._versio
 
 assert osmgpsmap._version == "1.0"
 
-class DummyMapNoGpsPoint(osmgpsmap.Map):
-    def do_draw_gps_point(self, drawable):
-        pass
-GObject.type_register(DummyMapNoGpsPoint)
-
-        
 class RTLSDRRun(Thread):
     def __init__(self, cmd):
         Thread.__init__(self)
         self.cmd = cmd
         
     def run(self):
+        #TODO test commands more
         #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
         cmds = self.cmd.split('|')
         self.proc = subprocess.Popen(cmds[0].split(),
@@ -79,7 +74,6 @@ class RTLSDRRun(Thread):
         subprocess.check_output(cmds[1].split(),stdin=self.proc.stdout)
         for line in iter(self.proc.stdout.readline, b''):
             line = line.decode('utf-8')
-            #print(line)
 
 class BackgroundDownload(Thread):
     def __init__(self, url, filename):
@@ -144,7 +138,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.7.1'
+        self.version = '0.7.2'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -174,7 +168,9 @@ class UI(Gtk.Window):
                     lastposition['lon'],
                     lastposition['zoom']
                 )
-        
+        #Now map-source required or it gets some mysterious null pointers and render issue:
+        self.osm.set_property("map-source", osmgpsmap.MapSource_t.LAST)
+        self.osm.set_property("repo-uri", privatetilesapi)
         
         osd = osmgpsmap.MapOsd(
                         show_dpad=True,
