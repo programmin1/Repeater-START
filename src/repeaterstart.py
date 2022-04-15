@@ -521,7 +521,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
 
     def displayNodes(self):
+        start = time.time();
         self.osm.image_remove_all()
+        minimum = self.settingsDialog.getMinFilter()
+        maximum = self.settingsDialog.getMaxFilter()
         self.allrepeaters = []
         irlpfile = self.userFile('irlp.txt')
         repeatersfile = self.userFile('repeaters.json')
@@ -530,18 +533,19 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             with open(irlpfile) as repfile:
                 for line in repfile:
                     try:
-                        self.addRepeaterIcon(IRLPNode(line))
+                        self.addRepeaterIcon(IRLPNode(line), minimum, maximum)
                     except ValueError as e:
                         print(e)
         else:
             print('WARNING IRLP FILE NOT LOADED')
-        if os.path.exists(repeatersfile):                
+        if os.path.exists(repeatersfile):
             for repeater in json.load(open(repeatersfile)):
                 #IRLP has been done in direct pull above.
                 if repeater['group'] != 'IRLP':
-                    self.addRepeaterIcon(HearHamRepeater(repeater))
+                    self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
         else:
-            print('WARNING REPEATERS FILE NOT LOADED')
+            print('WARNING: REPEATERS FILE NOT LOADED')
+        #print('DISPLAYNODES took '+str(time.time()-start))
     
     def credit_mapbox(self, obj, obj2):
         os.system('xdg-open https://www.mapbox.com/about/maps/')
@@ -550,9 +554,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def improvement_link(self, obj, obj2):
         os.system('xdg-open https://www.mapbox.com/map-feedback/')
     
-    def addRepeaterIcon(self, repeater):
-        if(float(repeater.freq) >= self.settingsDialog.getMinFilter() and
-           float(repeater.freq) <= self.settingsDialog.getMaxFilter() ):
+    def addRepeaterIcon(self, repeater, minimum, maximum):
+        if(float(repeater.freq) >= minimum and
+           float(repeater.freq) <= maximum ):
             if repeater.isDown():
                 pixbuf = self.towerDownPic
             else:
@@ -745,7 +749,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 )
             )
             self.refreshListing()
-            print('time: %s' % (time.time()  - t))
+            print('on_map_change time: %s' % (time.time()  - t))
     
     def refreshListing(self):
         # cursor lat,lon = self.osm.get_event_location(event).get_degrees()
@@ -755,11 +759,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.clearRows()
         self.playBtns = []
         added = 0
+        #The settinds parser take a bit of time. Get number once.
+        minimum = self.settingsDialog.getMinFilter()
+        maximum = self.settingsDialog.getMaxFilter()
         for item in self.allrepeaters:
             distance = item.distance(lat,lon)
             if( distance < maxkm and 
-              float(item.freq) >= self.settingsDialog.getMinFilter() and
-              float(item.freq) <= self.settingsDialog.getMaxFilter() ):
+              float(item.freq) >= minimum and
+              float(item.freq) <= maximum ):
                 self.addToList(item, lat,lon)
             added += 1
             if added > 100: #Listing excessively many makes it laggy, eg New England repeaters.
