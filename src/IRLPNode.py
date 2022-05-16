@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from Repeater import Repeater
-
+# Deprecated. See HearHamRepeater.py for one in use.
 class IRLPNode(Repeater):
     def __init__(self, line):
         """ Unpack the line to the properties of this class: """
@@ -16,3 +16,5 @@ class IRLPNode(Repeater):
         else:
             self.description = "Owned by %s in %s" % (self.owner, self.city)
     
+    def __str__(self):
+        return 'IRLP node %s in %s, status=%s, freq=%s' % (self.node,self.city,self.status,self.freq)
