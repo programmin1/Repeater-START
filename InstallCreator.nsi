@@ -12,8 +12,8 @@
 !define DESCRIPTION "Repeater-START (Showing The Amateur-radio Repeaters Tools)"
 # These three must be integers
 !define VERSIONMAJOR 0
-!define VERSIONMINOR 7
-!define VERSIONBUILD 1
+!define VERSIONMINOR 8
+!define VERSIONBUILD 0
 # These will be displayed by the "Click here for support information" link in "Add/Remove Programs"
 # It is possible to use "mailto:" links in here to open the email client
 !define HELPURL "http://hearham.com/repeaters" # "Support Information" link
