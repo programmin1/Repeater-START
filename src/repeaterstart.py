@@ -325,6 +325,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.listbox = Gtk.ListBox()
         self.listbox.set_activate_on_single_click(False)
         self.listbox.connect('row-activated', self.selrow)
+        self.listbox.connect("button_press_event", self.buttonPress)
         
         self.searchlistbox = Gtk.ListBox()
         self.searchlistbox.set_activate_on_single_click(False)
@@ -339,6 +340,64 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.GTKListRows = []
         self.playBtns = []
         GObject.idle_add(self.updateMessage)
+        
+    def buttonPress(self,listbox, event):
+        """
+        The right click feature on repeater list items
+        """
+        if event.button == 3:
+            x = int(event.x)
+            y = int(event.y)
+            moment = event.time
+            listBoxRow = listbox.get_row_at_y(y)
+            if listBoxRow is not None:
+                listBoxRow.grab_focus()
+                # Right click menu
+                rcmenu = Gtk.Menu()
+                rcgoto = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_JUMP_TO,None)
+                if listBoxRow.repeaterID>0:
+                    rcgoto.connect("activate", self.followlink)
+                    rcgoto.repeaterID = listBoxRow.repeaterID
+                    rcgoto.set_label("_Goto Repeater Page")
+                    rcgoto.show()
+                    rccomment = Gtk.ImageMenuItem.new()
+                    rccomment.connect("activate", self.followcommentlink)
+                    rccomment.repeaterID = listBoxRow.repeaterID
+                    rccomment.set_label("Comment")
+                    rccomment.show()
+                    rcmenu.append(rcgoto)
+                    rcmenu.append(rccomment)
+                    #And link any other links in the description:
+                    desc = listBoxRow.get_children()[0].get_children()[0].get_children()[-1].get_text()
+                    for url in re.finditer(r'(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?', desc):
+                        link = Gtk.ImageMenuItem.new()
+                        link.url = url.group(0)
+                        link.connect("activate", self.followextralink)
+                        link.set_label(link.url)
+                        link.show()
+                        rcmenu.append(link)
+                elif int(listBoxRow.irlp)>0:
+                    rcgoto.connect("activate", self.followIRLPlink)
+                    rcgoto.irlp = listBoxRow.irlp
+                    rcgoto.set_label("_Goto IRLP Status page")
+                    rcgoto.show()
+                    rcmenu.append(rcgoto)
+                else:
+                    print('Unknown data')
+                rcmenu.popup(None, None, None,None,
+                          event.button, moment)
+                          
+    def followIRLPlink(self,menuItem):
+        os.system('xdg-open "https://www.irlp.net/status/index.php?nodeid=%s"' % (menuItem.irlp,) )
+        
+    def followlink(self,menuItem):
+        os.system('xdg-open "https://hearham.com/repeaters/%s?src=%s"' % (menuItem.repeaterID,os.name) )
+
+    def followcommentlink(self,menuItem):
+        os.system('xdg-open "https://hearham.com/repeaters/%s/comment?src=%s"' % (menuItem.repeaterID,os.name) )
+
+    def followextralink(self,menuItem):
+        os.system('xdg-open "%s"' % (menuItem.url.replace('"','%22'),) )
         
     def setViews(self):
         if self.mode == 'search':
@@ -382,6 +441,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         row = Gtk.ListBoxRow()
                         row.longitude = float(repeater.lon)
                         row.latitude = float(repeater.lat)
+                        row.repeaterID = repeater.id
                         # ^ for double click activate
                         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
                         #print(repeater.callsign, repeater.freq, off, km)
@@ -396,6 +456,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         row = Gtk.ListBoxRow()
                         row.longitude = float(repeater.lon)
                         row.latitude = float(repeater.lat)
+                        row.repeaterID = repeater.id
                         # ^ for double click activate
                         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
                         mainlbl = Gtk.Label("%s node %s (%.2f%s)" % (
@@ -528,7 +589,6 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.allrepeaters = []
         irlpfile = self.userFile('irlp.txt')
         repeatersfile = self.userFile('repeaters.json')
-        #TODO IRLP is now updated regularly in main json could be combined:
         if os.path.exists(irlpfile):
             with open(irlpfile) as repfile:
                 for line in repfile:
@@ -777,6 +837,12 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         row = Gtk.ListBoxRow()
         row.longitude = repeater.lon
         row.latitude = repeater.lat
+        if isinstance(repeater, HearHamRepeater):
+            row.repeaterID = repeater.id
+            row.irlp = 0
+        else:#Irlpnode:
+            row.repeaterID = 0
+            row.irlp = repeater.node
         # ^ for double click activate
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         row.add(hbox)
