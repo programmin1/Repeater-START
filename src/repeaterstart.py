@@ -138,7 +138,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.7.2'
+        self.version = '0.8'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
