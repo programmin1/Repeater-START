@@ -11,3 +11,4 @@ Keywords=Maps;
 DBusActivatable=true
 X-Geoclue-Reason=Allows you to look up nearby amateur radio repeaters.
 X-Purism-FormFactor=Workstation;Mobile;
+StartupNotify=true
