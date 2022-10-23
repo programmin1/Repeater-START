@@ -68,6 +68,7 @@ from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
+from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
 
 #GObject.threads_init()
 #Gdk.threads_init()
@@ -428,114 +429,117 @@ class UI(Gtk.Window):
     def search_call(self, widget):
         srctext = widget.get_text()
         try:
-            gridsquare = locatorToLatLng(srctext)
-            if gridsquare:
-                self.osm.set_center(gridsquare['lat'], gridsquare['lng'])
-            
-            #Search for number - internet node no. or frequency
-            elif re.match(r"(\d)*\.?(\d)*$", srctext):
-                number = float(srctext)
-                self.clearRows()
-                lat, lon = self.osm.props.latitude, self.osm.props.longitude
-                noneFound = True;
-             
-                for repeater in self.allrepeaters:
-                    km = repeater.distance(lat,lon)
-                    if self.settingsDialog.getUnit() == 'mi':
-                        km = km*.62137119
-                    freq = float(repeater.freq)
-                    off = freq + float(repeater.offset)
-                    if repeater.freq == number or number == off:
+            pluscode = openlocationcode.decode(srctext)
+            self.osm.set_center(pluscode.latitudeCenter, pluscode.longitudeCenter)
+        except:
+            try:
+                gridsquare = locatorToLatLng(srctext)
+                if gridsquare:
+                    self.osm.set_center(gridsquare['lat'], gridsquare['lng'])
+                #Search for number - internet node no. or frequency
+                elif re.match(r"(\d)*\.?(\d)*$", srctext):
+                    number = float(srctext)
+                    self.clearRows()
+                    lat, lon = self.osm.props.latitude, self.osm.props.longitude
+                    noneFound = True;
+                 
+                    for repeater in self.allrepeaters:
+                        km = repeater.distance(lat,lon)
+                        if self.settingsDialog.getUnit() == 'mi':
+                            km = km*.62137119
+                        freq = float(repeater.freq)
+                        off = freq + float(repeater.offset)
+                        if repeater.freq == number or number == off:
+                            row = Gtk.ListBoxRow()
+                            row.longitude = float(repeater.lon)
+                            row.latitude = float(repeater.lat)
+                            row.repeaterID = repeater.id
+                            # ^ for double click activate
+                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                            #print(repeater.callsign, repeater.freq, off, km)
+                            mainlbl = Gtk.Label("%s (%.3f/%.3f) (%.2f%s)" % (
+                                  repeater.callsign, freq, off, km, self.settingsDialog.getUnit() ), xalign=0)
+                            hbox.pack_start(mainlbl,True,True,0)
+                            row.add(hbox)
+                            self.listbox.add(row)
+                            self.searchRows.append(row)
+                            noneFound = False
+                        elif repeater.node == srctext:
+                            row = Gtk.ListBoxRow()
+                            row.longitude = float(repeater.lon)
+                            row.latitude = float(repeater.lat)
+                            row.repeaterID = repeater.id
+                            # ^ for double click activate
+                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                            mainlbl = Gtk.Label("%s node %s (%.2f%s)" % (
+                                repeater.callsign, repeater.node, km, self.settingsDialog.getUnit()
+                            ),xalign=0)
+                            hbox.pack_start(mainlbl,True,True,0)
+                            row.add(hbox)
+                            self.listbox.add(row)
+                            self.searchRows.append(row)
+                            noneFound = False
+                    if noneFound:
                         row = Gtk.ListBoxRow()
-                        row.longitude = float(repeater.lon)
-                        row.latitude = float(repeater.lat)
-                        row.repeaterID = repeater.id
-                        # ^ for double click activate
                         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                        #print(repeater.callsign, repeater.freq, off, km)
-                        mainlbl = Gtk.Label("%s (%.3f/%.3f) (%.2f%s)" % (
-                              repeater.callsign, freq, off, km, self.settingsDialog.getUnit() ), xalign=0)
+                        mainlbl = Gtk.Label("Sorry, nothing found for that frequency or IRLP node number",xalign=0)
                         hbox.pack_start(mainlbl,True,True,0)
                         row.add(hbox)
                         self.listbox.add(row)
                         self.searchRows.append(row)
-                        noneFound = False
-                    elif repeater.node == srctext:
-                        row = Gtk.ListBoxRow()
-                        row.longitude = float(repeater.lon)
-                        row.latitude = float(repeater.lat)
-                        row.repeaterID = repeater.id
-                        # ^ for double click activate
-                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                        mainlbl = Gtk.Label("%s node %s (%.2f%s)" % (
-                            repeater.callsign, repeater.node, km, self.settingsDialog.getUnit()
-                        ),xalign=0)
-                        hbox.pack_start(mainlbl,True,True,0)
-                        row.add(hbox)
-                        self.listbox.add(row)
-                        self.searchRows.append(row)
-                        noneFound = False
-                if noneFound:
-                    row = Gtk.ListBoxRow()
-                    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                    mainlbl = Gtk.Label("Sorry, nothing found for that frequency or IRLP node number",xalign=0)
-                    hbox.pack_start(mainlbl,True,True,0)
-                    row.add(hbox)
-                    self.listbox.add(row)
-                    self.searchRows.append(row)
-                self.listbox.show_all()
-                
-            #What3Words address has 2 . in it:
-            elif re.match( r".*\..*\..*", srctext):
-                req = urllib.request.Request(
-                    'https://hearham.com/api/whatthreewords/v1?words=%s' % (urllib.parse.quote(srctext),), 
-                    data=None,
-                    headers={
-                        'User-Agent': 'Repeater-START/'+self.version
-                    }
-                )
-                f = urllib.request.urlopen(req,cafile=certifi.where())
-                objs = json.loads(f.read().decode('utf-8'))
-                if not objs:
-                    self.latlon_entry.set_text('Invalid what3words.com address.')
+                    self.listbox.show_all()
+                    
+                #What3Words address has 2 . in it:
+                elif re.match( r".*\..*\..*", srctext):
+                    req = urllib.request.Request(
+                        'https://hearham.com/api/whatthreewords/v1?words=%s' % (urllib.parse.quote(srctext),), 
+                        data=None,
+                        headers={
+                            'User-Agent': 'Repeater-START/'+self.version
+                        }
+                    )
+                    f = urllib.request.urlopen(req)
+                    objs = json.loads(f.read().decode('utf-8'))
+                    if not objs:
+                        self.latlon_entry.set_text('Invalid what3words.com address.')
+                    else:
+                        self.osm.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
+                        self.latlon_entry.set_text('Map Center: %s %s : %s' % ( latLongToLocator(objs['coordinates']['lat'], objs['coordinates']['lng']), objs['map'], objs['nearestPlace'] ) )
                 else:
-                    self.osm.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
-                    self.latlon_entry.set_text('Map Center: %s %s : %s' % ( latLongToLocator(objs['coordinates']['lat'], objs['coordinates']['lng']), objs['map'], objs['nearestPlace'] ) )
-            else:
-                # Use new query format https://github.com/osm-search/Nominatim/issues/2121 
-                req = urllib.request.Request(
-                    'https://nominatim.openstreetmap.org/search/?q=%s&format=json&limit=50' % (urllib.parse.quote(srctext),), 
-                    data=None,
-                    headers={
-                        'User-Agent': 'Repeater-START/'+self.version
-                    }
-                )
-                f = urllib.request.urlopen(req,cafile=certifi.where())
-                objs = json.loads(f.read().decode('utf-8'))
-                self.clearRows()
-                if len(objs) == 0:
-                    row = Gtk.ListBoxRow()
-                    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                    mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
-                    hbox.pack_start(mainlbl,True,True,0)
-                    row.add(hbox)
-                    self.listbox.add(row)
-                    self.searchRows.append(row)
-                for item in objs:
-                    row = Gtk.ListBoxRow()
-                    row.longitude = float(item['lon'])
-                    row.latitude = float(item['lat'])
-                    # ^ for double click activate
-                    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                    mainlbl = Gtk.Label(item['display_name'],xalign=0)
-                    hbox.pack_start(mainlbl,True,True,0)
-                    row.add(hbox)
-                    self.listbox.add(row)
-                    self.searchRows.append(row)
-                self.listbox.show_all()
-        except urllib.error.URLError:
-            self.latlon_entry.set_text('Network error')
-            
+                    # Use new query format https://github.com/osm-search/Nominatim/issues/2121 
+                    req = urllib.request.Request(
+                        'https://nominatim.openstreetmap.org/search/?q=%s&format=json&limit=50' % (urllib.parse.quote(srctext),), 
+                        data=None,
+                        headers={
+                            'User-Agent': 'Repeater-START/'+self.version
+                        }
+                    )
+                    f = urllib.request.urlopen(req)
+                    objs = json.loads(f.read().decode('utf-8'))
+                    self.clearRows()
+                    if len(objs) == 0:
+                        row = Gtk.ListBoxRow()
+                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                        mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
+                        hbox.pack_start(mainlbl,True,True,0)
+                        row.add(hbox)
+                        self.listbox.add(row)
+                        self.searchRows.append(row)
+                    for item in objs:
+                        row = Gtk.ListBoxRow()
+                        row.longitude = float(item['lon'])
+                        row.latitude = float(item['lat'])
+                        # ^ for double click activate
+                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                        mainlbl = Gtk.Label(item['display_name'],xalign=0)
+                        hbox.pack_start(mainlbl,True,True,0)
+                        row.add(hbox)
+                        self.listbox.add(row)
+                        self.searchRows.append(row)
+                    self.listbox.show_all()
+            except urllib.error.URLError:
+                self.latlon_entry.set_text('Network error')
+                
     def clearRows(self):
         for r in self.GTKListRows:
             r.destroy()
