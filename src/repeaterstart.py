@@ -172,6 +172,9 @@ class UI(Gtk.Window):
         self.set_title('RepeaterSTART GPS Mapper')
         self.vbox = Gtk.VBox()#False, 0)
         self.add(self.vbox)
+        self.paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
+        self.vbox.pack_start(self.paned, True, True, 0);
+
         self.unit = 'mi' #or km
         self.renderedLat = None
         self.renderedLon = None
@@ -281,6 +284,7 @@ class UI(Gtk.Window):
         self.add_button.connect('clicked', self.add_repeater_clicked)
         
         overlay = Gtk.Overlay()
+        overlay.set_size_request(15,15)
         overlay.add(self.osm)
         top_container = Gtk.VBox()
         leftright_container = Gtk.HBox()
@@ -291,7 +295,8 @@ class UI(Gtk.Window):
         leftright_container.pack_end(self.linkLabel(' (c) mapbox ', self.credit_mapbox), False, False, 0)
         
         top_container.pack_end(leftright_container, False, False, 0)
-        self.vbox.pack_start(overlay, True, True, 0)
+        #self.vbox.pack_start(overlay, True, True, 0)
+        self.paned.pack1(overlay, resize=True)
         overlay.add_overlay(top_container)
         overlay.set_overlay_pass_through(top_container,True)
         
@@ -344,8 +349,8 @@ class UI(Gtk.Window):
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.add(self.listbox)
-        #scrolled.add(self.searchlistbox)
-        self.vbox.pack_start(scrolled, True, True, 0)
+        #self.vbox.pack_start(scrolled, True, True, 0)
+        self.paned.pack2(scrolled, resize=True)
         self.GTKListRows = []
         self.playBtns = []
         #GObject.idle_add(self.updateMessage)
