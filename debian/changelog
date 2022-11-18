@@ -1,3 +1,9 @@
+repeater-start (0.9) unstable; urgency=medium
+ * Introduces resizable map/listing area.
+ * Adds ability to search for Global Plus Code and center map, even offline.
+ 
+ -- Luke <luke@hearham.live>  Fri, Nov 18 2022 00:16:00 -0800
+
 repeater-start (0.8) unstable; urgency=medium
  * Optimize loading of repeaters, introduce a right click menu.
  
