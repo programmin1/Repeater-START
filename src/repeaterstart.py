@@ -284,7 +284,7 @@ class UI(Gtk.Window):
         self.add_button.connect('clicked', self.add_repeater_clicked)
         
         overlay = Gtk.Overlay()
-        overlay.set_size_request(15,15)
+        overlay.set_size_request(35,35)
         overlay.add(self.osm)
         top_container = Gtk.VBox()
         leftright_container = Gtk.HBox()
@@ -746,7 +746,7 @@ class UI(Gtk.Window):
             0,Gtk.MessageType.INFO,
             Gtk.ButtonsType.OK,
             'Repeater-START v'+self.version+'\n'+
-            'Showing The Amateur Repeaters Tool - The only open-source Linux desktop repeater app utilizing the open-data repeater database.\n\n'+
+            'Showing The Amateur Repeaters Tool - The only open-source desktop repeater app utilizing the open-data repeater database.\n\n'+
             'Your downloaded repeater database was updated:\n'+changed+
             '\nFor support/questions please use the Github issues or contact@hearham.live.')
         response = dlg.run()
