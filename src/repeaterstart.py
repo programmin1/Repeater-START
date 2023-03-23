@@ -45,9 +45,11 @@ import urllib.request
 import urllib.parse
 from math import pi, sin, cos, sqrt, atan2, radians
 
+from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
 
@@ -165,8 +167,8 @@ class UI(Gtk.Window):
             repo_uri=privatetilesapi,
             image_format='jpg',
         )
-        if os.path.exists(self.userFile('lastPosition.json')):
-            with open(self.userFile('lastPosition.json')) as lastone:
+        if os.path.exists(userFile('lastPosition.json')):
+            with open(userFile('lastPosition.json')) as lastone:
                 lastposition = json.loads(lastone.read())
                 self.osm.set_center_and_zoom(lastposition['lat'],
                     lastposition['lon'],
@@ -553,7 +555,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         print(widget)
         
     def updateMessage(self):
-        toupdatefile = self.userFile('update.response')
+        toupdatefile = userFile('update.response')
         if os.path.exists(toupdatefile):
             Gdk.threads_enter()
             try:
@@ -582,12 +584,6 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         lbl.connect("button-press-event", connectfunction)
         return lbl
         
-    def userFile(self, name):
-        """ Returns available filename in user data dir for this app. """
-        mydir = os.path.join(GLib.get_user_data_dir(),'repeater-START')
-        if not os.path.exists(mydir):
-            os.mkdir(mydir)
-        return os.path.join(mydir,name)
 
 
     def displayNodes(self):
@@ -596,8 +592,8 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         minimum = self.settingsDialog.getMinFilter()
         maximum = self.settingsDialog.getMaxFilter()
         self.allrepeaters = []
-        irlpfile = self.userFile('irlp.txt')
-        repeatersfile = self.userFile('repeaters.json')
+        irlpfile = userFile('irlp.txt')
+        repeatersfile = userFile('repeaters.json')
         if os.path.exists(irlpfile):
             with open(irlpfile) as repfile:
                 for line in repfile:
@@ -614,6 +610,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
         else:
             print('WARNING: REPEATERS FILE NOT LOADED')
+        
+        for rpt in self.settingsDialog.config['Repeaters']:
+            customfile = userFile('rpt-'+rpt+'.csv')
+            if os.path.exists(customfile):
+                csv = CsvRepeaterListing(customfile)
+                icon = csv.getIcon()
+                for r in csv.repeaters:
+                    self.addRepeaterWithIcon(r, minimum, maximum, icon)
+        
         #print('DISPLAYNODES took '+str(time.time()-start))
     
     def credit_mapbox(self, obj, obj2):
@@ -630,6 +635,12 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 pixbuf = self.towerDownPic
             else:
                 pixbuf = self.towerPic
+            self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
+            self.allrepeaters.append(repeater)
+            
+    def addRepeaterWithIcon(self, repeater, minimum, maximum, pixbuf):
+        if(float(repeater.freq) >= minimum and
+           float(repeater.freq) <= maximum ):
             self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
             self.allrepeaters.append(repeater)
 
@@ -669,14 +680,21 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def downloadBackground(self):
         if self.bgdl == None:
-            self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', self.userFile('irlp.txt'))
+            self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
             self.bgdl.start()
             
-            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', self.userFile('repeaters.json'))
+            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', userFile('repeaters.json'))
             self.hearhamdl.start()
             
-            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', self.userFile('update.response'))
+            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', userFile('update.response'))
             self.checkUpdate.start()
+            
+            for rpt in self.settingsDialog.config['Repeaters']:
+                url = self.settingsDialog.config['Repeaters'][rpt]
+                if url.find('.csv') >-1:
+                    csv = BackgroundDownload(url, userFile('rpt-'+rpt+'.csv'))
+                    csv.start()
+            
             #Call again 10m later
             GLib.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):
@@ -733,7 +751,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         dlg.destroy()
         
     def helpAbout_clicked(self,button):
-        changed = datetime.datetime.fromtimestamp(os.path.getmtime(self.userFile('repeaters.json'))).strftime('%c')
+        changed = datetime.datetime.fromtimestamp(os.path.getmtime(userFile('repeaters.json'))).strftime('%c')
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.INFO,
             Gtk.ButtonsType.OK,
@@ -1021,7 +1039,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             'lon': self.renderedLon,
             'zoom': self.osm.props.zoom
         }
-        with open(self.userFile('lastPosition.json'), 'w') as outfile:
+        with open(userFile('lastPosition.json'), 'w') as outfile:
             outfile.write(json.dumps(stateObj))
         if self.rtllistener:
             self.rtllistener.proc.kill()

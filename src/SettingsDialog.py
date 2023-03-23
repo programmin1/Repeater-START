@@ -4,13 +4,14 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 from gi.repository import Gdk
 import configparser
+from RepeaterStartCommon import userFile
 
 class SettingsDialog:
     def __init__(self, parentWin):
         self.parentWin = parentWin
         self.config = configparser.ConfigParser()
-        if os.path.exists(parentWin.userFile('settings.ini')):
-            self.config.read(parentWin.userFile('settings.ini'))
+        if os.path.exists(userFile('settings.ini')):
+            self.config.read(userFile('settings.ini'))
         else: #defaults:
             self.config['ViewOptions'] = {
              'unitsLength': 'mi',
@@ -33,7 +34,7 @@ class SettingsDialog:
          'filterMin' : self.builder.get_object('lblMinFreq').get_text(),
          'filterMax' : self.builder.get_object('lblMaxFreq').get_text()
         }
-        with open(self.parentWin.userFile('settings.ini'),'w') as outfile:
+        with open(userFile('settings.ini'),'w') as outfile:
             self.config.write(outfile)
     
     def getMinFilter(self):
@@ -52,6 +53,27 @@ class SettingsDialog:
 
     def getUnit(self):
         return self.config['ViewOptions']['unitsLength']
+        
+    def getShown(self):
+        if 'Repeaters' in self.config:
+            print(self.config['Repeaters'])
+            for name in self.config['Repeaters']:
+                row = Gtk.ListBoxRow()
+                row.add(Gtk.Label(name))
+                row.url = self.config['Repeaters'][name]
+                self.repolist.add(row)
+            self.repolist.show_all()
+        else:
+            #Default case
+            row = Gtk.ListBoxRow()
+            row.add(Gtk.Label('Hearham Amateur Radio Repeaters'))
+            row.url = 'https://hearham.com/api/repeaters/v1'
+            self.repolist.add(row)
+            self.repolist.show_all()
+            self.config['Repeaters'] = {
+                'Hearham': row.url
+            }
+        return self.config['Repeaters']
 
     def show(self):
         #Create GtkDialog
@@ -64,6 +86,10 @@ class SettingsDialog:
         self.dialog.set_modal(True)
         #self.dialog.set_redraw_on_allocate(True)
         self.dialog.set_title('Settings')
+        
+        self.repolist = self.builder.get_object('repeaterRepos')
+        self.getShown()
+        
         self.dialog.show_all()
         #Load the config to the form
         options = self.config['ViewOptions']
@@ -83,8 +109,6 @@ class SettingsDialog:
 
     # User actions on the form:
     def NoFilterSet(self, *args):
-        print('nofilter')
-        print(args)
         self.builder.get_object('lblMinFreq').set_text('')
         self.builder.get_object('lblMaxFreq').set_text('')
 
@@ -95,6 +119,42 @@ class SettingsDialog:
     def UHFSet(self, *args):
         self.builder.get_object('lblMinFreq').set_text(self.UHFMIN)
         self.builder.get_object('lblMaxFreq').set_text(self.UHFMAX)
+    
+    def doDialog(self, title, inputarea=''):
+        dialogWindow = Gtk.MessageDialog(self.dialog,
+              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+              Gtk.MessageType.QUESTION,
+              Gtk.ButtonsType.OK_CANCEL,
+              title)
+
+        dialogWindow.set_title(title)
+        dialogBox = dialogWindow.get_content_area()
+        userEntry = Gtk.Entry()
+        userEntry.set_size_request(140,12);
+        userEntry.set_text(inputarea)
+        dialogBox.pack_end(userEntry, False, False, 0)
+        dialogWindow.show_all()
+        response = dialogWindow.run()
+        text = userEntry.get_text()
+        dialogWindow.destroy()
+        return text
+    
+    def addRpt(self, *args):
+        url = self.doDialog('Add repeaters by URL of listing:')
+        if url and url.find('.csv') > -1 :
+            row = Gtk.ListBoxRow()
+            row.add(Gtk.Label(url))
+            self.repolist.add(row)
+            self.repolist.show_all()
+            self.config['Repeaters']['yournamehere'] = url
+        
+    def rmRpt(self, *args):
+        self.repolist.remove( self.repolist.get_selected_row() )
+        
+    def propertyRpt(self, *args):
+        url = self.doDialog('Re/set current selected url:',self.repolist.get_selected_row().url)
+        if url:
+            self.repolist.get_selected_row().url = url
 
     def onDestroy(self, *args):
         pass
