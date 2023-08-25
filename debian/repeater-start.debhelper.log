@@ -1,5 +1,6 @@
 dh_update_autotools_config
 dh_prep
+dh_auto_install
 dh_install
 dh_installdocs
 dh_installchangelogs
@@ -13,4 +14,5 @@ dh_missing
 dh_installdeb
 dh_gencontrol
 dh_md5sums
+dh_builddeb
 dh_builddeb

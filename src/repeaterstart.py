@@ -139,7 +139,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.9'
+        self.version = '0.9.1'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -505,7 +505,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 else:
                     # Use new query format https://github.com/osm-search/Nominatim/issues/2121 
                     req = urllib.request.Request(
-                        'https://nominatim.openstreetmap.org/search/?q=%s&format=json&limit=50' % (urllib.parse.quote(srctext),), 
+                        'https://nominatim.openstreetmap.org/search?q=%s&format=json&limit=50' % (urllib.parse.quote(srctext),), 
                         data=None,
                         headers={
                             'User-Agent': 'Repeater-START/'+self.version

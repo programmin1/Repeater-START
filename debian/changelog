@@ -1,3 +1,14 @@
+repeater-start (0.9.1) unstable; urgency=medium
+ * Fix Openstreetmap Nominatim search
+ 
+ -- Luke <luke@hearham.live>  Fri, Aug 2023 00:06:00 -0000
+
+repeater-start (0.8) unstable; urgency=medium
+ * Optimize loading of repeaters, introduce a right click menu.
+ 
+ -- Luke <luke@hearham.live>  Fri, May 15 2022 20:51:00 -0800
+ 
+ 
 repeater-start (0.9) unstable; urgency=medium
  * Introduces resizable map/listing area.
  * Adds ability to search for Global Plus Code and center map, even offline.
