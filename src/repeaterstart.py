@@ -100,41 +100,6 @@ class BackgroundDownload(Thread):
 
 
 
-class DummyLayer(GObject.GObject, osmgpsmap.MapLayer):
-    def __init__(self):
-        GObject.GObject.__init__(self)
-
-    def do_draw(self, gpsmap, gdkdrawable):
-        pass
-        #Gdk.cairo_set_source_pixbuf(cr, pixbuf, 10, 10)
-        #surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
-        
-        #surface = cairo.ImageSurface(
-        #    cairo.FORMAT_RGB24, 10, 10)
-        #dc = cairo.Context(surface)
-        #dc = cairo.
-        #dc.set_source_rgb(1, 1, 1)
-        #dc.paint()
-        #gpsmap.do_draw_gps_point(gpsmap,surface)
-        #REPL to explore eg "dir(gpsmap)"
-        #while True:
-        #    print("enter")
-        #    print(eval(input()))
-
-    def do_render(self, gpsmap):
-        pass
-        #image = Gtk.Image()
-        #image.set_from_file('signaltower.svg')
-        #pixbuf = image.get_pixbuf()
-        #gpsmap.image_add(42.32, -122.87, pixbuf)
-        
-
-    def do_busy(self):
-        return False
-
-    def do_button_press(self, gpsmap, gdkeventbutton):
-        return False
-GObject.type_register(DummyLayer)
 
 class UI(Gtk.Window):
     def __init__(self):
@@ -188,12 +153,7 @@ class UI(Gtk.Window):
         self.towerDownPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
         self.towerPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
         
-        self.osm.layer_add(
-                    osd
-        )
-        self.osm.layer_add(
-                    DummyLayer()
-        )
+        self.osm.layer_add(osd)
         
         self.displayNodes()
 
@@ -810,6 +770,8 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
             t = time.time()
             text = 'Map Center: %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
+            if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
+                text += ' (Repeaters filtered in settings)'
             self.latlon_entry.set_text(
                 text % (
                     latLongToLocator(self.renderedLat, self.renderedLon),
