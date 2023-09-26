@@ -43,7 +43,7 @@ cd src
 
 Android:
 
-[Android port](https://github.com/programmin1/Repeater-START-android) is available on FDroid! Please see [here](https://howtotrainyourrobot.com/announcing-repeater-start-amateur-radio-app-for-android/) for details.
+[Android port](https://github.com/programmin1/Repeater-START-android) is available on Github! Please see [here](https://howtotrainyourrobot.com/announcing-repeater-start-amateur-radio-app-for-android/) for details.
 
 
 [![Liberapay](https://img.shields.io/liberapay/patrons/deepdaikon.svg?logo=liberapay)](https://liberapay.com/Programmin/)
