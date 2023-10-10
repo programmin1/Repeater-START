@@ -50,6 +50,7 @@ from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
+from NetworkStatus import isMobileData
 
 GObject.threads_init()
 Gdk.threads_init()
@@ -629,15 +630,18 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def downloadBackground(self):
         if self.bgdl == None:
-            self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', self.userFile('irlp.txt'))
-            self.bgdl.start()
-            
-            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', self.userFile('repeaters.json'))
-            self.hearhamdl.start()
-            
-            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', self.userFile('update.response'))
-            self.checkUpdate.start()
-            #Call again 10m later
+            if not(isMobileData()) or self.settingsDialog.getAllowMobile():
+                self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', self.userFile('irlp.txt'))
+                self.bgdl.start()
+                
+                self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', self.userFile('repeaters.json'))
+                self.hearhamdl.start()
+                
+                self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', self.userFile('update.response'))
+                self.checkUpdate.start()
+                #Call again 10m later
+            else:
+                print('(not downloading, mobile)')
             GLib.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):
                 GLib.timeout_add(10000, self.displayNodes)
