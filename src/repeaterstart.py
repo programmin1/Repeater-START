@@ -26,6 +26,7 @@ import json
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version('Geoclue', '2.0')
+gi.require_version('OsmGpsMap', '1.0')
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GLib
@@ -51,12 +52,8 @@ from SettingsDialog import SettingsDialog
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
 
-GObject.threads_init()
-Gdk.threads_init()
-
 from threading import Thread
 from gi.repository import OsmGpsMap as osmgpsmap
-print( "using library: %s (version %s)" % (osmgpsmap.__file__, osmgpsmap._version))
 
 assert osmgpsmap._version == "1.0"
 
