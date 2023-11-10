@@ -1,9 +1,12 @@
 import gi
 import os
+import urllib
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 from gi.repository import Gdk
 import configparser
+from CsvRepeaterListing import CsvRepeaterListing
 from RepeaterStartCommon import userFile
 
 class SettingsDialog:
@@ -57,21 +60,19 @@ class SettingsDialog:
     def getShown(self):
         if 'Repeaters' in self.config:
             print(self.config['Repeaters'])
-            for name in self.config['Repeaters']:
-                row = Gtk.ListBoxRow()
-                row.add(Gtk.Label(name))
-                row.url = self.config['Repeaters'][name]
-                self.repolist.add(row)
-            self.repolist.show_all()
+            try:
+                for name in self.config['Repeaters']:
+                    row = Gtk.ListBoxRow()
+                    row.add(Gtk.Label(name))
+                    row.url = self.config['Repeaters'][name]
+                    self.repolist.add(row)
+                self.repolist.show_all()
+            except AttributeError:
+                print('Repeater row not found?')
         else:
             #Default case
-            row = Gtk.ListBoxRow()
-            row.add(Gtk.Label('Hearham Amateur Radio Repeaters'))
-            row.url = 'https://hearham.com/api/repeaters/v1'
-            self.repolist.add(row)
-            self.repolist.show_all()
             self.config['Repeaters'] = {
-                'Hearham': row.url
+                'Hearham Amateur Radio Repeaters': "https://hearham.com/api/repeaters/v1"
             }
         return self.config['Repeaters']
 
@@ -141,15 +142,38 @@ class SettingsDialog:
     
     def addRpt(self, *args):
         url = self.doDialog('Add repeaters by URL of listing:')
+        tmpfile = userFile('repeater-temp-file.csv')
         if url and url.find('.csv') > -1 :
+            #verify and get the name:
+            #TODO should be in a background thread somehow
+            urllib.request.urlretrieve(url, tmpfile)
+            csv = CsvRepeaterListing(tmpfile)
+            if csv.name:
+                row = Gtk.ListBoxRow()
+                row.add(Gtk.Label(csv.name))
+                row.url = url
+                self.repolist.add(row)
+                self.repolist.show_all()
+                self.config['Repeaters'][csv.name] = url
+            else:
+                print('invalid entry? Must be a .csv file available on a server.')
+            os.remove(tmpfile)
+        elif url.find("hearham.com/api/repeaters/v1"):
+            #Re-add default:
             row = Gtk.ListBoxRow()
-            row.add(Gtk.Label(url))
+            row.add(Gtk.Label('Hearham Amateur Radio Repeaters'))
+            row.url = "https://hearham.com/api/repeaters/v1"
             self.repolist.add(row)
             self.repolist.show_all()
-            self.config['Repeaters']['yournamehere'] = url
+            self.config['Repeaters']['Hearham Amateur Radio Repeaters'] = "https://hearham.com/api/repeaters/v1"
         
     def rmRpt(self, *args):
-        self.repolist.remove( self.repolist.get_selected_row() )
+        row = self.repolist.get_selected_row()
+        for item in self.config['Repeaters']:
+            if self.config['Repeaters'][item] == row.url:
+                del self.config['Repeaters'][item]
+                #TODO clean up files
+        self.repolist.remove( row )
         
     def propertyRpt(self, *args):
         url = self.doDialog('Re/set current selected url:',self.repolist.get_selected_row().url)

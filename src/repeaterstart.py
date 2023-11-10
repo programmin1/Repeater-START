@@ -197,6 +197,7 @@ class UI(Gtk.Window):
                     DummyLayer()
         )
         
+        self.settingsDialog.getShown() #in case not initialized for:
         self.displayNodes()
 
         self.last_image = None
@@ -592,32 +593,36 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         minimum = self.settingsDialog.getMinFilter()
         maximum = self.settingsDialog.getMaxFilter()
         self.allrepeaters = []
-        irlpfile = userFile('irlp.txt')
-        repeatersfile = userFile('repeaters.json')
-        if os.path.exists(irlpfile):
-            with open(irlpfile) as repfile:
-                for line in repfile:
-                    try:
-                        self.addRepeaterIcon(IRLPNode(line), minimum, maximum)
-                    except ValueError as e:
-                        print(e)
-        else:
-            print('WARNING IRLP FILE NOT LOADED')
-        if os.path.exists(repeatersfile):
-            for repeater in json.load(open(repeatersfile)):
-                #IRLP has been done in direct pull above.
-                if repeater['group'] != 'IRLP':
-                    self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
-        else:
-            print('WARNING: REPEATERS FILE NOT LOADED')
-        
+
         for rpt in self.settingsDialog.config['Repeaters']:
-            customfile = userFile('rpt-'+rpt+'.csv')
-            if os.path.exists(customfile):
-                csv = CsvRepeaterListing(customfile)
-                icon = csv.getIcon()
-                for r in csv.repeaters:
-                    self.addRepeaterWithIcon(r, minimum, maximum, icon)
+            url = self.settingsDialog.config['Repeaters'][rpt]
+            if url.find('hearham.com/api/repeaters/v1') >-1:
+                #The standard repeaters shown:
+                irlpfile = userFile('irlp.txt')
+                repeatersfile = userFile('repeaters.json')
+                if os.path.exists(irlpfile):
+                    with open(irlpfile) as repfile:
+                        for line in repfile:
+                            try:
+                                self.addRepeaterIcon(IRLPNode(line), minimum, maximum)
+                            except ValueError as e:
+                                print(e)
+                else:
+                    print('WARNING IRLP FILE NOT LOADED')
+                if os.path.exists(repeatersfile):
+                    for repeater in json.load(open(repeatersfile)):
+                        #IRLP has been done in direct pull above.
+                        if repeater['group'] != 'IRLP':
+                            self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
+                else:
+                    print('WARNING: REPEATERS FILE NOT LOADED')
+            else:
+                customfile = userFile('rpt-'+rpt+'.csv')
+                if os.path.exists(customfile):
+                    csv = CsvRepeaterListing(customfile)
+                    icon = csv.getIcon()
+                    for r in csv.repeaters:
+                        self.addRepeaterWithIcon(r, minimum, maximum, icon)
         
         #print('DISPLAYNODES took '+str(time.time()-start))
     
@@ -680,20 +685,25 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def downloadBackground(self):
         if self.bgdl == None:
-            self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
-            self.bgdl.start()
-            
-            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', userFile('repeaters.json'))
-            self.hearhamdl.start()
             
             self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', userFile('update.response'))
             self.checkUpdate.start()
             
             for rpt in self.settingsDialog.config['Repeaters']:
                 url = self.settingsDialog.config['Repeaters'][rpt]
-                if url.find('.csv') >-1:
+
+                if url.find('hearham.com/api/repeaters/v1') >-1:
+                    self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
+                    self.bgdl.start()
+                    
+                    self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', userFile('repeaters.json'))
+                    self.hearhamdl.start()
+
+                elif url.find('.csv') >-1:
                     csv = BackgroundDownload(url, userFile('rpt-'+rpt+'.csv'))
                     csv.start()
+                else:
+                    print('Unknown repeater list not added : '+url)
             
             #Call again 10m later
             GLib.timeout_add(600000, self.downloadBackground)

@@ -3,7 +3,6 @@ import csv
 import os
 from gi.repository import GdkPixbuf
 
-from RepeaterStartCommon import userFile
 from Repeater import Repeater
 from RepeaterStartCommon import userFile
 import urllib
@@ -15,7 +14,6 @@ class CsvRepeaterListing():
         data = False
         with open(filename) as csvfile:
             for row in csv.reader(csvfile, delimiter=',', quotechar='"'):
-                print(row)
                 if start:
                     if row[0].lower() == 'name':
                         self.name = row[1]
@@ -26,6 +24,7 @@ class CsvRepeaterListing():
                 if len(nonempty) == 0:
                     start = False #separator
                 elif not start and not data:
+                    #Reading data, mode now:
                     self.cols = row
                     data = True
                     self.repeaters = []
