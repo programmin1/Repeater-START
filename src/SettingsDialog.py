@@ -1,16 +1,20 @@
 import gi
 import os
+import urllib
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 from gi.repository import Gdk
 import configparser
+from CsvRepeaterListing import CsvRepeaterListing
+from RepeaterStartCommon import userFile
 
 class SettingsDialog:
     def __init__(self, parentWin):
         self.parentWin = parentWin
         self.config = configparser.ConfigParser()
-        if os.path.exists(parentWin.userFile('settings.ini')):
-            self.config.read(parentWin.userFile('settings.ini'))
+        if os.path.exists(userFile('settings.ini')):
+            self.config.read(userFile('settings.ini'))
         else: #defaults:
             self.config['ViewOptions'] = {
              'unitsLength': 'mi',
@@ -40,7 +44,7 @@ class SettingsDialog:
         self.config['DownloadOptions'] = {
           'mobile' : self.builder.get_object('allowMobile').get_active()
         }
-        with open(self.parentWin.userFile('settings.ini'),'w') as outfile:
+        with open(userFile('settings.ini'),'w') as outfile:
             self.config.write(outfile)
     
     def getAllowMobile(self):
@@ -63,6 +67,25 @@ class SettingsDialog:
 
     def getUnit(self):
         return self.config['ViewOptions']['unitsLength']
+        
+    def getShown(self):
+        if 'Repeaters' in self.config:
+            print(self.config['Repeaters'])
+            try:
+                for name in self.config['Repeaters']:
+                    row = Gtk.ListBoxRow()
+                    row.add(Gtk.Label(name))
+                    row.url = self.config['Repeaters'][name]
+                    self.repolist.add(row)
+                self.repolist.show_all()
+            except AttributeError:
+                print('Repeater row not found?')
+        else:
+            #Default case
+            self.config['Repeaters'] = {
+                'Hearham Amateur Radio Repeaters': "https://hearham.com/api/repeaters/v1"
+            }
+        return self.config['Repeaters']
 
     def show(self):
         #Create GtkDialog
@@ -75,6 +98,10 @@ class SettingsDialog:
         self.dialog.set_modal(True)
         #self.dialog.set_redraw_on_allocate(True)
         self.dialog.set_title('Settings')
+        
+        self.repolist = self.builder.get_object('repeaterRepos')
+        self.getShown()
+        
         self.dialog.show_all()
         #Load the config to the form
         options = self.config['ViewOptions']
@@ -95,8 +122,6 @@ class SettingsDialog:
 
     # User actions on the form:
     def NoFilterSet(self, *args):
-        print('nofilter')
-        print(args)
         self.builder.get_object('lblMinFreq').set_text('')
         self.builder.get_object('lblMaxFreq').set_text('')
 
@@ -107,6 +132,65 @@ class SettingsDialog:
     def UHFSet(self, *args):
         self.builder.get_object('lblMinFreq').set_text(self.UHFMIN)
         self.builder.get_object('lblMaxFreq').set_text(self.UHFMAX)
+    
+    def doDialog(self, title, inputarea=''):
+        dialogWindow = Gtk.MessageDialog(self.dialog,
+              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+              Gtk.MessageType.QUESTION,
+              Gtk.ButtonsType.OK_CANCEL,
+              title)
+
+        dialogWindow.set_title(title)
+        dialogBox = dialogWindow.get_content_area()
+        userEntry = Gtk.Entry()
+        userEntry.set_size_request(140,12);
+        userEntry.set_text(inputarea)
+        dialogBox.pack_end(userEntry, False, False, 0)
+        dialogWindow.show_all()
+        response = dialogWindow.run()
+        text = userEntry.get_text()
+        dialogWindow.destroy()
+        return text
+    
+    def addRpt(self, *args):
+        url = self.doDialog('Add repeaters by URL of listing:')
+        tmpfile = userFile('repeater-temp-file.csv')
+        if url and url.find('.csv') > -1 :
+            #verify and get the name:
+            #TODO should be in a background thread somehow
+            urllib.request.urlretrieve(url, tmpfile)
+            csv = CsvRepeaterListing(tmpfile)
+            if csv.name:
+                row = Gtk.ListBoxRow()
+                row.add(Gtk.Label(csv.name))
+                row.url = url
+                self.repolist.add(row)
+                self.repolist.show_all()
+                self.config['Repeaters'][csv.name] = url
+            else:
+                print('invalid entry? Must be a .csv file available on a server.')
+            os.remove(tmpfile)
+        elif url.find("hearham.com/api/repeaters/v1"):
+            #Re-add default:
+            row = Gtk.ListBoxRow()
+            row.add(Gtk.Label('Hearham Amateur Radio Repeaters'))
+            row.url = "https://hearham.com/api/repeaters/v1"
+            self.repolist.add(row)
+            self.repolist.show_all()
+            self.config['Repeaters']['Hearham Amateur Radio Repeaters'] = "https://hearham.com/api/repeaters/v1"
+        
+    def rmRpt(self, *args):
+        row = self.repolist.get_selected_row()
+        for item in self.config['Repeaters']:
+            if self.config['Repeaters'][item] == row.url:
+                del self.config['Repeaters'][item]
+                #TODO clean up files
+        self.repolist.remove( row )
+        
+    def propertyRpt(self, *args):
+        url = self.doDialog('Re/set current selected url:',self.repolist.get_selected_row().url)
+        if url:
+            self.repolist.get_selected_row().url = url
 
     def onDestroy(self, *args):
         pass
