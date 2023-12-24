@@ -5,7 +5,7 @@ This tool displays all the repeaters available through the repeater listing at h
 
 Support for searching for a Maidenhead-grid-square coordinate, WhatThreeWords Position, a mountain or peak on Openstreetmap, repeater frequency/IRLP node, or finding your current location, is included.
 
-You can download this program for recent Ubuntu and Debian based systems at https://sourceforge.net/projects/repeater-start/
+You can download this program for Windows 8, Windows 10, recent Ubuntu and Debian based systems at https://sourceforge.net/projects/repeater-start/
 Simply download and open the file, select install. OR, if you prefer command line:
 
 ```
@@ -23,9 +23,27 @@ This is written in Python for GTK+. If you run it you should have:
 
 Then just run "python3 repeaterstart.py"
 
+Windows:
+
+Much of this will run on Windows. Check out the "windows" branch which has Geoclue locate-me button removed, and runs in msys2.
+
+```
+pacman -S mingw-w64-x86_64-osm-gps-map
+pacman -S python3
+pacman -S mingw-w64-x86_64-python-gobject
+```
+
+are requirements, for the map library and Python. Run with mingw python in the msys2 console:
+
+```
+cd src
+/mingw64/bin/python3.exe ./repeaterstart.py
+```
+
+
 Android:
 
-Android port is available on FDroid! Please see [here](https://howtotrainyourrobot.com/announcing-repeater-start-amateur-radio-app-for-android/) for details.
+[Android port](https://github.com/programmin1/Repeater-START-android) is available on FDroid! Please see [here](https://howtotrainyourrobot.com/announcing-repeater-start-amateur-radio-app-for-android/) for details.
 
 
 [![Liberapay](https://img.shields.io/liberapay/patrons/deepdaikon.svg?logo=liberapay)](https://liberapay.com/Programmin/)

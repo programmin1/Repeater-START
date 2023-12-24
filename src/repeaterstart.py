@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2020 Luke Bryan.
+(C) 2019-2022 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -64,9 +64,11 @@ import urllib.request
 import urllib.parse
 from math import pi, sin, cos, sqrt, atan2, radians
 
+from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
 
@@ -80,18 +82,13 @@ print( "using library: %s (version %s)" % (osmgpsmap.__file__, osmgpsmap._versio
 
 assert osmgpsmap._version == "1.0"
 
-class DummyMapNoGpsPoint(osmgpsmap.Map):
-    def do_draw_gps_point(self, drawable):
-        pass
-GObject.type_register(DummyMapNoGpsPoint)
-
-        
 class RTLSDRRun(Thread):
     def __init__(self, cmd):
         Thread.__init__(self)
         self.cmd = cmd
         
     def run(self):
+        #TODO test commands more
         #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
         cmds = self.cmd.split('|')
         self.proc = subprocess.Popen(cmds[0].split(),
@@ -100,7 +97,6 @@ class RTLSDRRun(Thread):
         subprocess.check_output(cmds[1].split(),stdin=self.proc.stdout)
         for line in iter(self.proc.stdout.readline, b''):
             line = line.decode('utf-8')
-            #print(line)
 
 class BackgroundDownload(Thread):
     def __init__(self, url, filename):
@@ -165,7 +161,7 @@ GObject.type_register(DummyLayer)
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.9.1'
+        self.version = '0.99 beta'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
@@ -191,14 +187,13 @@ class UI(Gtk.Window):
             repo_uri=privatetilesapi,
             image_format='jpg',
         )
-        if os.path.exists(self.userFile('lastPosition.json')):
-             with open(self.userFile('lastPosition.json')) as lastone:
-                 lastposition = json.loads(lastone.read())
-                 if lastposition['lat']:
-                     self.osm.set_center_and_zoom(lastposition['lat'],
-                         lastposition['lon'],
-                         lastposition['zoom']
-                     )
+        if os.path.exists(userFile('lastPosition.json')):
+            with open(userFile('lastPosition.json')) as lastone:
+                lastposition = json.loads(lastone.read())
+                self.osm.set_center_and_zoom(lastposition['lat'],
+                    lastposition['lon'],
+                    lastposition['zoom']
+                )
         #Now map-source required or it gets some mysterious null pointers and render issue:
         self.osm.set_property("map-source", osmgpsmap.MapSource_t.LAST)
         self.osm.set_property("repo-uri", privatetilesapi)
@@ -219,6 +214,7 @@ class UI(Gtk.Window):
                     DummyLayer()
         )
         
+        self.settingsDialog.getShown() #in case not initialized for:
         self.displayNodes()
 
         self.last_image = None
@@ -413,6 +409,64 @@ class UI(Gtk.Window):
     def followextralink(self,menuItem):
         os.system('start %s' % (menuItem.url.replace('"','%22'),) )
         
+    def buttonPress(self,listbox, event):
+        """
+        The right click feature on repeater list items
+        """
+        if event.button == 3:
+            x = int(event.x)
+            y = int(event.y)
+            moment = event.time
+            listBoxRow = listbox.get_row_at_y(y)
+            if listBoxRow is not None:
+                listBoxRow.grab_focus()
+                # Right click menu
+                rcmenu = Gtk.Menu()
+                rcgoto = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_JUMP_TO,None)
+                if listBoxRow.repeaterID>0:
+                    rcgoto.connect("activate", self.followlink)
+                    rcgoto.repeaterID = listBoxRow.repeaterID
+                    rcgoto.set_label("_Goto Repeater Page")
+                    rcgoto.show()
+                    rccomment = Gtk.ImageMenuItem.new()
+                    rccomment.connect("activate", self.followcommentlink)
+                    rccomment.repeaterID = listBoxRow.repeaterID
+                    rccomment.set_label("Comment")
+                    rccomment.show()
+                    rcmenu.append(rcgoto)
+                    rcmenu.append(rccomment)
+                    #And link any other links in the description:
+                    desc = listBoxRow.get_children()[0].get_children()[0].get_children()[-1].get_text()
+                    for url in re.finditer(r'(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?', desc):
+                        link = Gtk.ImageMenuItem.new()
+                        link.url = url.group(0)
+                        link.connect("activate", self.followextralink)
+                        link.set_label(link.url)
+                        link.show()
+                        rcmenu.append(link)
+                elif int(listBoxRow.irlp)>0:
+                    rcgoto.connect("activate", self.followIRLPlink)
+                    rcgoto.irlp = listBoxRow.irlp
+                    rcgoto.set_label("_Goto IRLP Status page")
+                    rcgoto.show()
+                    rcmenu.append(rcgoto)
+                else:
+                    print('Unknown data')
+                rcmenu.popup(None, None, None,None,
+                          event.button, moment)
+                          
+    def followIRLPlink(self,menuItem):
+        os.system('xdg-open "https://www.irlp.net/status/index.php?nodeid=%s"' % (menuItem.irlp,) )
+        
+    def followlink(self,menuItem):
+        os.system('xdg-open "https://hearham.com/repeaters/%s?src=%s"' % (menuItem.repeaterID,os.name) )
+
+    def followcommentlink(self,menuItem):
+        os.system('xdg-open "https://hearham.com/repeaters/%s/comment?src=%s"' % (menuItem.repeaterID,os.name) )
+
+    def followextralink(self,menuItem):
+        os.system('xdg-open "%s"' % (menuItem.url.replace('"','%22'),) )
+        
     def setViews(self):
         if self.mode == 'search':
             self.search_text.show()
@@ -561,7 +615,7 @@ class UI(Gtk.Window):
         print(widget)
         
     def updateMessage(self):
-        toupdatefile = self.userFile('update.response')
+        toupdatefile = userFile('update.response')
         if os.path.exists(toupdatefile):
             Gdk.threads_enter()
             try:
@@ -590,12 +644,6 @@ class UI(Gtk.Window):
         lbl.connect("button-press-event", connectfunction)
         return lbl
         
-    def userFile(self, name):
-        """ Returns available filename in user data dir for this app. """
-        mydir = os.path.join(GLib.get_user_data_dir(),'repeater-START')
-        if not os.path.exists(mydir):
-            os.mkdir(mydir)
-        return os.path.join(mydir,name)
 
 
     def displayNodes(self):
@@ -604,24 +652,37 @@ class UI(Gtk.Window):
         minimum = self.settingsDialog.getMinFilter()
         maximum = self.settingsDialog.getMaxFilter()
         self.allrepeaters = []
-        irlpfile = self.userFile('irlp.txt')
-        repeatersfile = self.userFile('repeaters.json')
-        if os.path.exists(irlpfile):
-            with open(irlpfile) as repfile:
-                for line in repfile:
-                    try:
-                        self.addRepeaterIcon(IRLPNode(line), minimum, maximum)
-                    except ValueError as e:
-                        print(e)
-        else:
-            print('WARNING IRLP FILE NOT LOADED')
-        if os.path.exists(repeatersfile):
-            for repeater in json.load(open(repeatersfile)):
-                #IRLP has been done in direct pull above.
-                if repeater['group'] != 'IRLP':
-                    self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
-        else:
-            print('WARNING: REPEATERS FILE NOT LOADED')
+
+        for rpt in self.settingsDialog.config['Repeaters']:
+            url = self.settingsDialog.config['Repeaters'][rpt]
+            if url.find('hearham.com/api/repeaters/v1') >-1:
+                #The standard repeaters shown:
+                irlpfile = userFile('irlp.txt')
+                repeatersfile = userFile('repeaters.json')
+                if os.path.exists(irlpfile):
+                    with open(irlpfile) as repfile:
+                        for line in repfile:
+                            try:
+                                self.addRepeaterIcon(IRLPNode(line), minimum, maximum)
+                            except ValueError as e:
+                                print(e)
+                else:
+                    print('WARNING IRLP FILE NOT LOADED')
+                if os.path.exists(repeatersfile):
+                    for repeater in json.load(open(repeatersfile)):
+                        #IRLP has been done in direct pull above.
+                        if repeater['group'] != 'IRLP':
+                            self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
+                else:
+                    print('WARNING: REPEATERS FILE NOT LOADED')
+            else:
+                customfile = userFile('rpt-'+rpt+'.csv')
+                if os.path.exists(customfile):
+                    csv = CsvRepeaterListing(customfile)
+                    icon = csv.getIcon()
+                    for r in csv.repeaters:
+                        self.addRepeaterWithIcon(r, minimum, maximum, icon)
+        
         #print('DISPLAYNODES took '+str(time.time()-start))
     
     def credit_mapbox(self, obj, obj2):
@@ -638,6 +699,12 @@ class UI(Gtk.Window):
                 pixbuf = self.towerDownPic
             else:
                 pixbuf = self.towerPic
+            self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
+            self.allrepeaters.append(repeater)
+            
+    def addRepeaterWithIcon(self, repeater, minimum, maximum, pixbuf):
+        if(float(repeater.freq) >= minimum and
+           float(repeater.freq) <= maximum ):
             self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
             self.allrepeaters.append(repeater)
 
@@ -677,14 +744,27 @@ class UI(Gtk.Window):
 
     def downloadBackground(self):
         if self.bgdl == None:
-            self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', self.userFile('irlp.txt'))
-            self.bgdl.start()
-            
-            self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', self.userFile('repeaters.json'))
-            self.hearhamdl.start()
             
             self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/windows', self.userFile('update.response'))
+
             self.checkUpdate.start()
+            
+            for rpt in self.settingsDialog.config['Repeaters']:
+                url = self.settingsDialog.config['Repeaters'][rpt]
+
+                if url.find('hearham.com/api/repeaters/v1') >-1:
+                    self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
+                    self.bgdl.start()
+                    
+                    self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', userFile('repeaters.json'))
+                    self.hearhamdl.start()
+
+                elif url.find('.csv') >-1:
+                    csv = BackgroundDownload(url, userFile('rpt-'+rpt+'.csv'))
+                    csv.start()
+                else:
+                    print('Unknown repeater list not added : '+url)
+            
             #Call again 10m later
             GLib.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):
@@ -741,7 +821,7 @@ class UI(Gtk.Window):
         dlg.destroy()
         
     def helpAbout_clicked(self,button):
-        changed = datetime.datetime.fromtimestamp(os.path.getmtime(self.userFile('repeaters.json'))).strftime('%c')
+        changed = datetime.datetime.fromtimestamp(os.path.getmtime(userFile('repeaters.json'))).strftime('%c')
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.INFO,
             Gtk.ButtonsType.OK,
@@ -1030,7 +1110,7 @@ class UI(Gtk.Window):
             'lon': self.renderedLon,
             'zoom': self.osm.props.zoom
         }
-        with open(self.userFile('lastPosition.json'), 'w') as outfile:
+        with open(userFile('lastPosition.json'), 'w') as outfile:
             outfile.write(json.dumps(stateObj))
         if self.rtllistener:
             self.rtllistener.proc.kill()

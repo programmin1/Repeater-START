@@ -1,3 +1,20 @@
+repeater-start (0.9) unstable; urgency=medium
+ * Introduces resizable map/listing area.
+ * Adds ability to search for Global Plus Code and center map, even offline.
+ 
+ -- Luke <luke@hearham.live>  Fri, Nov 18 2022 00:16:00 -0800
+
+repeater-start (0.8) unstable; urgency=medium
+ * Optimize loading of repeaters, introduce a right click menu.
+ 
+ -- Luke <luke@hearham.live>  Fri, May 15 2022 20:51:00 -0800
+
+
+repeater-start (0.7.2) unstable; urgency=medium
+ * Fix a null grey maps issue on some systems and icon placement when installed on Librem.
+ 
+ -- Luke <luke@hearham.live>  Fri, Mar 4 2022 22:26:00 -0800
+
 repeater-start (0.7.1) unstable; urgency=medium
  * Fix very slow startup and reinit of all the icons.
  
