@@ -2,7 +2,7 @@ repeater-start (0.99-beta) unstable; urgency=medium
  * Add data/mobile check.
  * Add ability to add different repositories of repeaters.
  
- -- Luke <luke@hearham.live>  Fri, Aug 2023 00:06:00 -0000
+ -- Luke <luke@hearham.live>  Sat, Dec 23 2023 23:30:00 -0800
 
 repeater-start (0.9.1) unstable; urgency=medium
  * Fix Openstreetmap Nominatim search
