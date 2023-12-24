@@ -8,6 +8,7 @@ from gi.repository import Gdk
 import configparser
 from CsvRepeaterListing import CsvRepeaterListing
 from RepeaterStartCommon import userFile
+from urllib.error import HTTPError
 
 class SettingsDialog:
     def __init__(self, parentWin):
@@ -139,26 +140,47 @@ class SettingsDialog:
         text = userEntry.get_text()
         dialogWindow.destroy()
         return text
+        
+    def doMsg(self, title, msg):
+        dialogWindow = Gtk.MessageDialog(self.dialog,
+              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+              Gtk.MessageType.WARNING,
+              Gtk.ButtonsType.OK,
+              title)
+        dialogWindow.set_title(title)
+        dialogBox = dialogWindow.get_content_area()
+        userEntry = Gtk.Label()
+        userEntry.set_size_request(140,12);
+        userEntry.set_text(msg)
+        dialogBox.pack_end(userEntry, False, False, 0)
+        dialogWindow.show_all()
+        print('shown')
+        response = dialogWindow.run()
+        dialogWindow.destroy()
+        return
     
     def addRpt(self, *args):
         url = self.doDialog('Add repeaters by URL of listing:')
         tmpfile = userFile('repeater-temp-file.csv')
         if url and url.find('.csv') > -1 :
-            #verify and get the name:
-            #TODO should be in a background thread somehow
-            urllib.request.urlretrieve(url, tmpfile)
-            csv = CsvRepeaterListing(tmpfile)
-            if csv.name:
-                row = Gtk.ListBoxRow()
-                row.add(Gtk.Label(csv.name))
-                row.url = url
-                self.repolist.add(row)
-                self.repolist.show_all()
-                self.config['Repeaters'][csv.name] = url
-            else:
-                print('invalid entry? Must be a .csv file available on a server.')
+            try:
+                #verify and get the name:
+                #TODO should be in a background thread somehow
+                urllib.request.urlretrieve(url, tmpfile)
+                csv = CsvRepeaterListing(tmpfile)
+                if csv.name:
+                    row = Gtk.ListBoxRow()
+                    row.add(Gtk.Label(csv.name))
+                    row.url = url
+                    self.repolist.add(row)
+                    self.repolist.show_all()
+                    self.config['Repeaters'][csv.name] = url
+                else:
+                    self.doMsg('Error:','Invalid entry? Must be a .csv file available on a server.')
+            except HTTPError:
+                self.doMsg('Error:','HTTP error- Must be a .csv file available on a server.')
             os.remove(tmpfile)
-        elif url.find("hearham.com/api/repeaters/v1"):
+        elif url and url.find("hearham.com/api/repeaters/v1") > -1:
             #Re-add default:
             row = Gtk.ListBoxRow()
             row.add(Gtk.Label('Hearham Amateur Radio Repeaters'))
@@ -166,6 +188,9 @@ class SettingsDialog:
             self.repolist.add(row)
             self.repolist.show_all()
             self.config['Repeaters']['Hearham Amateur Radio Repeaters'] = "https://hearham.com/api/repeaters/v1"
+        elif len(url):
+            self.doMsg('Error:','You must enter a full url of a .csv file.')
+            return
         
     def rmRpt(self, *args):
         row = self.repolist.get_selected_row()
@@ -177,8 +202,23 @@ class SettingsDialog:
         
     def propertyRpt(self, *args):
         url = self.doDialog('Re/set current selected url:',self.repolist.get_selected_row().url)
-        if url:
-            self.repolist.get_selected_row().url = url
+        tmpfile = userFile('repeater-temp-file.csv')
+        if url and url.find('.csv') > -1 :
+            #verify and get the name:
+            try:
+                #TODO should be in a background thread somehow
+                urllib.request.urlretrieve(url, tmpfile)
+                csv = CsvRepeaterListing(tmpfile)
+                if csv.name:
+                    self.config['Repeaters'][csv.name] = url
+                    self.repolist.get_selected_row().url = url
+                    self.repolist.show_all()
+                else:
+                    self.doMsg('Error:','Invalid entry? Must be a .csv file available on a server.')
+                os.remove(tmpfile)
+            except HTTPError:
+                self.doMsg('Error:','HTTP error- Must be a .csv file available on a server.')
+            
 
     def onDestroy(self, *args):
         pass

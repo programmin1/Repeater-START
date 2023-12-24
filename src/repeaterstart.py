@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2022 Luke Bryan.
+(C) 2019-2023 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
