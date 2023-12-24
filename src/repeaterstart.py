@@ -745,7 +745,7 @@ class UI(Gtk.Window):
     def downloadBackground(self):
         if self.bgdl == None:
             
-            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/windows', self.userFile('update.response'))
+            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/windows', userFile('update.response'))
 
             self.checkUpdate.start()
             
