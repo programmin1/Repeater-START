@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2022 Luke Bryan.
+(C) 2019-2023 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -104,7 +104,7 @@ class BackgroundDownload(Thread):
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.9.1'
+        self.version = '0.99 beta'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
