@@ -43,7 +43,9 @@ cd src
 
 Android:
 
-[Android port](https://github.com/programmin1/Repeater-START-android) is available on Github! Please see [here](https://howtotrainyourrobot.com/announcing-repeater-start-amateur-radio-app-for-android/) for details.
+[<img src="https://hearham.com/img/GP.png"
+     alt="Get it on Google Play"
+     height="80">](https://play.google.com/store/apps/details?id=com.hearham.repeaterstartpremium)
 
 
 [![Liberapay](https://img.shields.io/liberapay/patrons/deepdaikon.svg?logo=liberapay)](https://liberapay.com/Programmin/)
