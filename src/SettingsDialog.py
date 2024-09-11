@@ -34,17 +34,18 @@ class SettingsDialog:
             
     def writeSettings(self):
         # Save the config to the file:
-        units = 'mi'
-        if self.builder.get_object('distUnitsRadioKM').get_active():
-            units = 'km'
-        self.config['ViewOptions'] = {
-         'unitsLength': units,
-         'filterMin' : self.builder.get_object('lblMinFreq').get_text(),
-         'filterMax' : self.builder.get_object('lblMaxFreq').get_text()
-        }
-        self.config['DownloadOptions'] = {
-          'mobile' : self.builder.get_object('allowMobile').get_active()
-        }
+        if hasattr(self, 'builder'):
+            units = 'mi'
+            if self.builder.get_object('distUnitsRadioKM').get_active():
+                units = 'km'
+            self.config['ViewOptions'] = {
+             'unitsLength': units,
+             'filterMin' : self.builder.get_object('lblMinFreq').get_text(),
+             'filterMax' : self.builder.get_object('lblMaxFreq').get_text()
+            }
+            self.config['DownloadOptions'] = {
+              'mobile' : self.builder.get_object('allowMobile').get_active()
+            }
         with open(userFile('settings.ini'),'w') as outfile:
             self.config.write(outfile)
     

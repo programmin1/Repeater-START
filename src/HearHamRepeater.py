@@ -10,6 +10,7 @@ class HearHamRepeater(Repeater):
         self.owner = jsonObject['callsign']
         self.status = jsonObject['operational']
         self.url = 'https://hearham.com/repeaters/'+str(jsonObject['id'])
+        self.mode = jsonObject['mode']
         self.node = jsonObject['internet_node']
         self.group = jsonObject['group']
         self.lat = float(jsonObject['latitude'])

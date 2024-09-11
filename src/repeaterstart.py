@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2023 Luke Bryan.
+(C) 2019-2024 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -50,6 +50,7 @@ from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from HelpDialog import HelpDialog
 from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
@@ -57,6 +58,7 @@ from NetworkStatus import isMobileData
 
 from threading import Thread
 from gi.repository import OsmGpsMap as osmgpsmap
+from zipfile import ZipFile
 
 assert osmgpsmap._version == "1.0"
 
@@ -97,8 +99,13 @@ class BackgroundDownload(Thread):
         except urllib.error.HTTPError:
             print("Failed to fetch.")
             self.finished = True
-
-
+            
+class BackgroundDownloadZip(BackgroundDownload):
+    def run(self):
+        super().run()
+        with ZipFile(self.filename, 'r') as prozip:
+            prozip.extractall(path=userFile('.hidden'))
+        os.remove(self.filename)
 
 
 class UI(Gtk.Window):
@@ -646,6 +653,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             if not(isMobileData()) or self.settingsDialog.getAllowMobile():
                 self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', userFile('update.response'))
                 self.checkUpdate.start()
+                if 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
+                    self.premiumUpdate = BackgroundDownloadZip('https://hearham.com/api/repeaters/v1/radios?key='+self.settingsDialog.config['DownloadOptions']['licenseKEY'], userFile('premium.zip'))
+                    self.premiumUpdate.start()
                 
                 for rpt in self.settingsDialog.config['Repeaters']:
                     url = self.settingsDialog.config['Repeaters'][rpt]
@@ -917,10 +927,17 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         else:
             playbtn.set_image(Gtk.Image(icon_name='media-playback-start',
                       icon_size=self.PLAYSIZE))
+        helpbtn = Gtk.Button()
+        helpbtn.repeater = repeater;
+        helpbtn.set_image(Gtk.Image(icon_name='help-browser',
+                      icon_size=self.PLAYSIZE))
+        helpbtn.set_tooltip_text('Radio Setup Help')
+        helpbtn.connect('clicked', self.helppro)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
         rightbox.pack_start(distlbl, False, True, 10)
         rightbox.pack_start(playbtn, True, True, 0)
+        rightbox.pack_start(helpbtn, True, True, 0)
         hbox.pack_start(rightbox, False, True, 0)
         
         #These two arrays should correspond!
@@ -955,6 +972,30 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def on_button_release(self, osm, event):
         pass # Not the right lat/lon props here.
+        
+    def helppro(self, el):
+        if os.path.exists(userFile('.hidden')):#self.settingsDialog.config['licenseKEY']:
+            help = HelpDialog(self, el.repeater)
+            help.run()
+            help.destroy()
+        else:
+            dialogWindow = Gtk.MessageDialog(self,
+              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+              Gtk.MessageType.QUESTION,
+              Gtk.ButtonsType.OK_CANCEL,
+              "Enter your License key for quick, step by step repeater programming instructions.")
+            dialogBox = dialogWindow.get_content_area()
+            userEntry = Gtk.Entry()
+            userEntry.set_size_request(60,12);
+            dialogBox.pack_end(userEntry, False, False, 0)
+            dialogWindow.show_all()
+            response = dialogWindow.run()
+            licenseKey = userEntry.get_text()
+            dialogWindow.destroy()
+            if len(licenseKey):
+                self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
+                self.settingsDialog.writeSettings()
+                self.downloadBackground()
 
     def on_button_press(self, osm, event):
         state = event.get_state()
