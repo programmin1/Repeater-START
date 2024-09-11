@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2023 Luke Bryan.
+(C) 2019-2024 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -68,6 +68,7 @@ from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from HelpDialog import HelpDialog
 from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
@@ -78,7 +79,7 @@ from lib import openlocationcode #Plus code. https://github.com/google/open-loca
 from threading import Thread
 gi.require_version('OsmGpsMap', '1.0')
 from gi.repository import OsmGpsMap as osmgpsmap
-print( "using library: %s (version %s)" % (osmgpsmap.__file__, osmgpsmap._version))
+from zipfile import ZipFile
 
 assert osmgpsmap._version == "1.0"
 
@@ -119,44 +120,14 @@ class BackgroundDownload(Thread):
         except urllib.error.HTTPError:
             print("Failed to fetch.")
             self.finished = True
+            
+class BackgroundDownloadZip(BackgroundDownload):
+    def run(self):
+        super().run()
+        with ZipFile(self.filename, 'r') as prozip:
+            prozip.extractall(path=userFile('.hidden'))
+        os.remove(self.filename)
 
-
-
-class DummyLayer(GObject.GObject, osmgpsmap.MapLayer):
-    def __init__(self):
-        GObject.GObject.__init__(self)
-
-    def do_draw(self, gpsmap, gdkdrawable):
-        pass
-        #Gdk.cairo_set_source_pixbuf(cr, pixbuf, 10, 10)
-        #surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
-        
-        #surface = cairo.ImageSurface(
-        #    cairo.FORMAT_RGB24, 10, 10)
-        #dc = cairo.Context(surface)
-        #dc = cairo.
-        #dc.set_source_rgb(1, 1, 1)
-        #dc.paint()
-        #gpsmap.do_draw_gps_point(gpsmap,surface)
-        #REPL to explore eg "dir(gpsmap)"
-        #while True:
-        #    print("enter")
-        #    print(eval(input()))
-
-    def do_render(self, gpsmap):
-        pass
-        #image = Gtk.Image()
-        #image.set_from_file('signaltower.svg')
-        #pixbuf = image.get_pixbuf()
-        #gpsmap.image_add(42.32, -122.87, pixbuf)
-        
-
-    def do_busy(self):
-        return False
-
-    def do_button_press(self, gpsmap, gdkeventbutton):
-        return False
-GObject.type_register(DummyLayer)
 
 class UI(Gtk.Window):
     def __init__(self):
@@ -209,9 +180,6 @@ class UI(Gtk.Window):
                         show_dpad=True,
                         show_zoom=True,
                         show_crosshair=True)
-        )
-        self.osm.layer_add(
-                    DummyLayer()
         )
         
         self.settingsDialog.getShown() #in case not initialized for:
@@ -744,14 +712,15 @@ class UI(Gtk.Window):
 
     def downloadBackground(self):
         if self.bgdl == None:
-            
             self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/windows', userFile('update.response'))
 
             self.checkUpdate.start()
             
+            if 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
+                self.premiumUpdate = BackgroundDownloadZip('https://hearham.com/api/repeaters/v1/radios?key='+self.settingsDialog.config['DownloadOptions']['licenseKEY'], userFile('premium.zip'))
+                self.premiumUpdate.start()
             for rpt in self.settingsDialog.config['Repeaters']:
                 url = self.settingsDialog.config['Repeaters'][rpt]
-
                 if url.find('hearham.com/api/repeaters/v1') >-1:
                     self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
                     self.bgdl.start()
@@ -764,8 +733,11 @@ class UI(Gtk.Window):
                     csv.start()
                 else:
                     print('Unknown repeater list not added : '+url)
-            
-            #Call again 10m later
+                
+                #Call again 10m later
+            else:
+                print('(not downloading, mobile)')
+
             GLib.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):
                 GLib.timeout_add(10000, self.displayNodes)
@@ -899,6 +871,8 @@ class UI(Gtk.Window):
 
             t = time.time()
             text = 'Map Center: %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
+            if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
+                text += ' (Repeaters filtered in settings)'
             self.latlon_entry.set_text(
                 text % (
                     latLongToLocator(self.renderedLat, self.renderedLon),
@@ -1015,10 +989,17 @@ class UI(Gtk.Window):
         else:
             playbtn.set_image(Gtk.Image(icon_name='media-playback-start',
                       icon_size=self.PLAYSIZE))
+        helpbtn = Gtk.Button()
+        helpbtn.repeater = repeater;
+        helpbtn.set_image(Gtk.Image(icon_name='help-browser',
+                      icon_size=self.PLAYSIZE))
+        helpbtn.set_tooltip_text('Radio Setup Help')
+        helpbtn.connect('clicked', self.helppro)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
         rightbox.pack_start(distlbl, False, True, 10)
         rightbox.pack_start(playbtn, True, True, 0)
+        rightbox.pack_start(helpbtn, True, True, 0)
         hbox.pack_start(rightbox, False, True, 0)
         
         #These two arrays should correspond!
@@ -1053,6 +1034,28 @@ class UI(Gtk.Window):
 
     def on_button_release(self, osm, event):
         pass # Not the right lat/lon props here.
+        
+    def helppro(self, el):
+        if os.path.exists(userFile('.hidden')):#self.settingsDialog.config['licenseKEY']:
+            help = HelpDialog(self, el.repeater)
+        else:
+            dialogWindow = Gtk.MessageDialog(self,
+              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+              Gtk.MessageType.QUESTION,
+              Gtk.ButtonsType.OK_CANCEL,
+              "Enter your License key for quick, step by step repeater programming instructions.")
+            dialogBox = dialogWindow.get_content_area()
+            userEntry = Gtk.Entry()
+            userEntry.set_size_request(60,12);
+            dialogBox.pack_end(userEntry, False, False, 0)
+            dialogWindow.show_all()
+            response = dialogWindow.run()
+            licenseKey = userEntry.get_text()
+            dialogWindow.destroy()
+            if len(licenseKey):
+                self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
+                self.settingsDialog.writeSettings()
+                self.downloadBackground()
 
     def on_button_press(self, osm, event):
         state = event.get_state()
