@@ -732,11 +732,8 @@ class UI(Gtk.Window):
                     csv = BackgroundDownload(url, userFile('rpt-'+rpt+'.csv'))
                     csv.start()
                 else:
-                    print('Unknown repeater list not added : '+url)
-                
-                #Call again 10m later
-            else:
-                print('(not downloading, mobile)')
+                    print('Unknown repeater list not added : '+url)    
+            #Call again 10m later
 
             GLib.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):

@@ -22,10 +22,7 @@ class SettingsDialog:
              'filterMin' : '',
              'filterMax' : ''
             }
-        if not 'DownloadOptions' in self.config:
-            self.config['DownloadOptions'] = {
-                'mobile' : False
-            }
+
         #Just ham radio constants:
         self.UHFMIN = '420'
         self.UHFMAX = '450'
@@ -43,15 +40,9 @@ class SettingsDialog:
              'filterMin' : self.builder.get_object('lblMinFreq').get_text(),
              'filterMax' : self.builder.get_object('lblMaxFreq').get_text()
             }
-            self.config['DownloadOptions'] = {
-              'mobile' : self.builder.get_object('allowMobile').get_active()
-            }
         with open(userFile('settings.ini'),'w') as outfile:
             self.config.write(outfile)
     
-    def getAllowMobile(self):
-        #note the STRING value of config values:
-        return self.config['DownloadOptions']['mobile'].lower() != 'false'
     
     def getMinFilter(self):
         value = self.config['ViewOptions']['filterMin']
@@ -120,7 +111,6 @@ class SettingsDialog:
             self.builder.get_object('freqFilterVHF').set_active(True)
         if self.getMinFilter() == float(self.UHFMIN) and self.getMaxFilter() == float(self.UHFMAX):
             self.builder.get_object('freqFilterUHF').set_active(True)
-        self.builder.get_object('allowMobile').set_active(self.getAllowMobile())
 
     # User actions on the form:
     def NoFilterSet(self, *args):
