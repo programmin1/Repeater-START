@@ -1,3 +1,6 @@
+repeater-start (1.0) stable; urgency=medium
+ * Premium license key enables step by step instructions.
+
 repeater-start (0.99-beta) unstable; urgency=medium
  * Add data/mobile check.
  * Add ability to add different repositories of repeaters.
