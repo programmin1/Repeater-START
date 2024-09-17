@@ -120,19 +120,21 @@ class BackgroundDownload(Thread):
         except urllib.error.HTTPError:
             print("Failed to fetch.")
             self.finished = True
-            
+
 class BackgroundDownloadZip(BackgroundDownload):
     def run(self):
         super().run()
-        with ZipFile(self.filename, 'r') as prozip:
-            prozip.extractall(path=userFile('.hidden'))
-        os.remove(self.filename)
-
+        if os.path.exists(self.filename):
+            with ZipFile(self.filename, 'r') as prozip:
+                prozip.extractall(path=userFile('.hidden'))
+            os.remove(self.filename)
+        else:
+            print('Unable to update premium RepeaterSTART data.')
 
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '0.99 beta'
+        self.version = '1.0'
         self.mode = ''
         self.set_default_size(500, 500)
         self.connect('destroy', self.cleanup)
