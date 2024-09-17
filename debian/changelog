@@ -1,5 +1,8 @@
 repeater-start (1.0) stable; urgency=medium
  * Premium license key enables step by step instructions.
+ 
+ -- Luke <luke@hearham.live>  Mon, Sep 16 2024 21:20:00 -0800
+ 
 
 repeater-start (0.99-beta) unstable; urgency=medium
  * Add data/mobile check.
