@@ -9,7 +9,7 @@ You can download this program for Windows 8, Windows 10, recent Ubuntu and Debia
 Simply download and open the file, select install. OR, if you prefer command line:
 
 ```
-sudo dpkg -i ./repeater-start_0.7_all.deb
+sudo dpkg -i ./repeater-start_1.0_all.deb
 ```
 
 
