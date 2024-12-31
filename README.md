@@ -45,7 +45,14 @@ Android:
 
 [<img src="https://hearham.com/img/GP.png"
      alt="Get it on Google Play"
-     height="80">](https://play.google.com/store/apps/details?id=com.hearham.repeaterstartpremium)
+     height="50">](https://play.google.com/store/apps/details?id=com.hearham.repeaterstartpremium)
+
+
+iOS:
+
+[<img src="https://hearham.com/img/badgeapple.png"
+     alt="Get it on Apple store"
+     height="50">](https://apps.apple.com/us/app/repeaterstart-premium/id6738314675)
 
 
 [![Liberapay](https://img.shields.io/liberapay/patrons/deepdaikon.svg?logo=liberapay)](https://liberapay.com/Programmin/)
