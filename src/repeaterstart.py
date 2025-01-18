@@ -115,7 +115,7 @@ class UI(Gtk.Window):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
         self.version = '1.0'
         self.mode = ''
-        self.set_default_size(500, 500)
+        self.set_default_size(600, 600)
         self.connect('destroy', self.cleanup)
         self.set_title('RepeaterSTART GPS Mapper')
         self.vbox = Gtk.VBox(False, 0)
@@ -238,7 +238,18 @@ class UI(Gtk.Window):
         leftright_container.pack_end(self.linkLabel(' Improve this map', self.improvement_link), False, False, 0)
         leftright_container.pack_end(self.linkLabel(' (c) openstreetmap ', self.credit_osm), False, False, 0)
         leftright_container.pack_end(self.linkLabel(' (c) mapbox ', self.credit_mapbox), False, False, 0)
-        
+        if not 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
+            pro_container = Gtk.HBox()
+            pro_inner = Gtk.VBox()
+            pro_inner.override_background_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(1.0, 1.0, 0.8, 1.0))
+            pro = Gtk.Label("Go premium!", xalign=1)
+            pro.set_has_window(True)
+            pro.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+            pro.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.9, 0.0, 0.0, 1.0))
+            pro.connect("button-press-event", self.gopremium)
+            pro_inner.pack_end(pro, False, False, 0)
+            pro_container.pack_end(pro_inner, False, False, 0)
+            top_container.pack_start(pro_container, False, False, 0)
         top_container.pack_end(leftright_container, False, False, 0)
         #self.vbox.pack_start(overlay, True, True, 0)
         self.paned.pack1(overlay, resize=True)
@@ -362,7 +373,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     print('Unknown data')
                 rcmenu.popup(None, None, None,None,
                           event.button, moment)
-                          
+    
+    def gopremium(self, obj, obj2):
+        os.system('xdg-open "https://hearham.com/gopremium"')
+    
     def followIRLPlink(self,menuItem):
         os.system('xdg-open "https://www.irlp.net/status/index.php?nodeid=%s"' % (menuItem.irlp,) )
         
@@ -580,7 +594,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     for repeater in json.load(open(repeatersfile)):
                         #IRLP has been done in direct pull above.
                         if repeater['group'] != 'IRLP':
-                            self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
+                            #Slow LibOSM issue https://github.com/nzjrs/osm-gps-map/issues/104
+                            GLib.idle_add(self.addRepeaterIcon, HearHamRepeater(repeater), minimum, maximum)
+                            #self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
                 else:
                     print('WARNING: REPEATERS FILE NOT LOADED')
             else:
@@ -588,8 +604,27 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 if os.path.exists(customfile):
                     csv = CsvRepeaterListing(customfile)
                     icon = csv.getIcon()
+                    iconDown = icon;
+
+                    # Get pixel data
+                    pixels = bytearray(iconDown.get_pixels())
+                    for y in range(iconDown.get_height()):
+                        for x in range(iconDown.get_width()):
+                            offset = y * iconDown.get_rowstride() + x * iconDown.get_n_channels()
+                            # Set red color (R, G, B)
+                            pixels[offset] = 255
+                            pixels[offset + 1] = 0
+                            pixels[offset + 2] = 0
+                    pixels = bytes(pixels)
+                    iconDown = GdkPixbuf.Pixbuf.new_from_data(pixels, icon.get_colorspace(), icon.get_has_alpha(),
+                                        icon.get_bits_per_sample(), icon.get_width(),
+                                        icon.get_height(), icon.get_rowstride())
+
                     for r in csv.repeaters:
-                        self.addRepeaterWithIcon(r, minimum, maximum, icon)
+                        if r.isDown():
+                            self.addRepeaterWithIcon(r, minimum, maximum, iconDown)   
+                        else:
+                            self.addRepeaterWithIcon(r, minimum, maximum, icon)
         
         #print('DISPLAYNODES took '+str(time.time()-start))
     
@@ -707,7 +742,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def home_clicked(self, button):
         #self.getlocation() #Freezes up, odd.
-        GObject.timeout_add(1, self.getlocation)
+        GLib.timeout_add(1, self.getlocation)
         
     def back_clicked(self, button):
         self.osm.set_center_and_zoom(self.lastLat, self.lastLon, 12)

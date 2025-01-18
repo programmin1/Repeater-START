@@ -13,3 +13,6 @@ class Repeater:
         
     def isDown(self):
         return not self.status or 'DOWN' == self.status or 'OFFLINE' == self.status
+
+    def __str__(self):
+        return "Repeater object for %s at %s frequency." % (self.callsign, self.freq)

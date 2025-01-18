@@ -44,6 +44,16 @@ class CsvRepeaterListing():
                             setattr(r, 'lon', float(row[i]))
                         if self.cols[i] == 'encode':
                             setattr(r, 'pl', row[i])
+                        if self.cols[i].find('active') == 0:
+                            active = False
+                            if row[i].lower().find('active')==0:
+                                active = True
+                            if row[i].lower().find('true')==0:
+                                active = True
+                            if row[i].lower().find('up')==0:
+                                active = True
+                            setattr(r, 'status', active)
+                            
                     self.repeaters.append(r)
         if not os.path.exists(self.iconFile()):
             #try:
