@@ -437,19 +437,19 @@ class UI(Gtk.Window):
                           event.button, moment)
     
     def gopremium(self, obj, obj2):
-        os.system('xdg-open "https://hearham.com/gopremium"')
+        os.system('start https://hearham.com/gopremium')
     
     def followIRLPlink(self,menuItem):
-        os.system('xdg-open "https://www.irlp.net/status/index.php?nodeid=%s"' % (menuItem.irlp,) )
+        os.system('start https://www.irlp.net/status/index.php?nodeid=%s' % (menuItem.irlp,) )
         
     def followlink(self,menuItem):
-        os.system('xdg-open "https://hearham.com/repeaters/%s?src=%s"' % (menuItem.repeaterID,os.name) )
+        os.system('start https://hearham.com/repeaters/%s?src=%s' % (menuItem.repeaterID,os.name) )
 
     def followcommentlink(self,menuItem):
-        os.system('xdg-open "https://hearham.com/repeaters/%s/comment?src=%s"' % (menuItem.repeaterID,os.name) )
+        os.system('start https://hearham.com/repeaters/%s/comment?src=%s' % (menuItem.repeaterID,os.name) )
 
     def followextralink(self,menuItem):
-        os.system('xdg-open "%s"' % (menuItem.url.replace('"','%22'),) )
+        os.system('start "%s"' % (menuItem.url.replace('"','%22'),) )
         
     def setViews(self):
         if self.mode == 'search':
