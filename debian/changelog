@@ -1,3 +1,10 @@
+repeater-start (1.0.1) stable; urgency=medium
+ * Faster initial start with thousands of repeaters.
+ * Unavailable custom repeater icon bug where it showed the same icon, should be red now.
+ * Minor fixes.
+ 
+ -- Luke <luke@hearham.live>  Sat, Jan 18 2025 23:30:00 -0800
+
 repeater-start (1.0) stable; urgency=medium
  * Premium license key enables step by step instructions.
  
