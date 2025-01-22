@@ -22,6 +22,10 @@ class SettingsDialog:
              'filterMin' : '',
              'filterMax' : ''
             }
+        if not 'DownloadOptions' in self.config:
+            self.config['DownloadOptions'] = {
+                #'mobile' : False #not windows
+            }
 
         #Just ham radio constants:
         self.UHFMIN = '420'
