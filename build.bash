@@ -2,6 +2,7 @@
 /mingw64/bin/pyinstaller -i "resources/repeaterSTART.ico" ./repeaterstart.spec
 echo "Cleaning up."
 rm -rf dist/repeaterstart/share/locale
+rm -rf dist/repeaterstart/share/icons/hicolor
 rm -rf dist/repeaterstart/share/icons/Adwaita/512x512
 rm -rf dist/repeaterstart/share/icons/Adwaita/256x256
 rm -rf dist/repeaterstart/share/icons/Adwaita/96x96
