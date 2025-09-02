@@ -11,6 +11,8 @@ class HelpDialog():
                 "OFFSET=\""+str(repeater.offset)+"\";"+
                 "MODE=\""+str(repeater.mode)+"\";"+
                 "PL=\""+str(repeater.pl)+"\";"+
+                "PLDECODE=\""+str(repeater.decode if hasattr(repeater,'decode') else "")+"\";"+
+                "DISABLED="+('true' if repeater.isDown() else 'false')+";"+
                 "URL=\""+str(repeater.url)+"\";");
         # Open built in Edge app view - inprivate so it does not pollute browser history:
         os.system('start msedge -inprivate --app='+loadfile)
