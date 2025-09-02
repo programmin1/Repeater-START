@@ -162,7 +162,7 @@
                           <object class="GtkLabel">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
-                            <property name="label" translatable="yes">Mhz - </property>
+                            <property name="label" translatable="yes">MHz - </property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -187,7 +187,7 @@
                           <object class="GtkLabel">
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
-                            <property name="label" translatable="yes">Mhz</property>
+                            <property name="label" translatable="yes">MHz</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>

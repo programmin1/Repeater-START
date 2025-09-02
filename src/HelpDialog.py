@@ -1,10 +1,13 @@
 import gi
 gi.require_version("Gtk", "3.0")
+try:    
+    gi.require_version('WebKit2', '4.1')
+except:
+    gi.require_version('WebKit2', '4.0') #older Ubuntu 22.04 etc.
 from gi.repository import Gtk
 from gi.repository import WebKit2
 from RepeaterStartCommon import userFile
 import os
-gi.require_version('WebKit2', '4.0')
 
 class HelpDialog(Gtk.Dialog):
     def __init__(self, parent, repeater):
@@ -17,6 +20,7 @@ class HelpDialog(Gtk.Dialog):
         sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         
         sw.add(self.helpview)
+        self.helpview.connect('decide_policy',self.decidePolicy)
         box.pack_start(sw, True,True, 0)
         
         pro = userFile('.hidden')
@@ -33,7 +37,20 @@ class HelpDialog(Gtk.Dialog):
                 "OFFSET=\""+str(repeater.offset)+"\";"+
                 "MODE=\""+str(repeater.mode)+"\";"+
                 "PL=\""+str(repeater.pl)+"\";"+
+                "PLDECODE=\""+str(repeater.decode if hasattr(repeater,'decode') else "")+"\";"+
+                "DISABLED="+('true' if repeater.isDown() else 'false')+";"+
                 "URL=\""+str(repeater.url)+"\";");
         self.helpview.load_uri(loadfile)
         #box.show()
         self.show_all()
+    
+    def decidePolicy(self, web_view, decision, decision_type):
+        if decision_type == WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION:
+            navigation_action = decision.get_navigation_action()
+            request = navigation_action.get_request()
+            uri = request.get_uri()
+            decision.ignore()
+            os.system(f'xdg-open "{uri}"')
+            return True
+        decision.use()
+        return False #Default behavior

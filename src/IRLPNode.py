@@ -16,6 +16,7 @@ class IRLPNode(Repeater):
             self.description = "Owned by %s" % (self.owner,)
         else:
             self.description = "Owned by %s in %s" % (self.owner, self.city)
+        self.url = 'https://www.irlp.net/status/index.php?nodeid='+self.node
     
     def __str__(self):
         return 'IRLP node %s in %s, status=%s, freq=%s' % (self.node,self.city,self.status,self.freq)

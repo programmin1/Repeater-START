@@ -113,7 +113,7 @@ class BackgroundDownloadZip(BackgroundDownload):
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '1.0.1'
+        self.version = '1.0.3'
         self.mode = ''
         self.set_default_size(600, 600)
         self.connect('destroy', self.cleanup)
@@ -901,16 +901,21 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign), xalign=0)
         else:
             if repeater.node:
-                lbltext = "%s, %s at %smhz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %smhz"
+                lbltext = "%s, %s at %sMHz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %sMHz"
                 lbltext = lbltext % (repeater.node, repeater.callsign, repeater.freq)
                 label1 = Gtk.Label(lbltext, xalign=0)
                 if repeater.isDown():
                     label1.set_markup('<s>'+lbltext+'</s>')
             else:
-                lbltext = "%s, %smhz" % (repeater.callsign, repeater.freq)
+                lbltext = "%s, %sMHz" % (repeater.callsign, repeater.freq)
                 label1 = Gtk.Label(lbltext, xalign=0)
                 if not repeater.status:
                     label1.set_markup('<s>'+lbltext+'</s>')
+        displayOffset = repeater.offset
+        if float(displayOffset) > 0:
+            displayOffset = ("+%sMHz" % (displayOffset,))
+        elif float(displayOffset) < 0:
+            displayOffset = ("%sMHz" % (displayOffset,))
         try:
             int(repeater.status)
             linkknown = False
@@ -922,13 +927,13 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     linkknown = True
             if not linkknown and int(repeater.status) >1:
                 innerhbox.pack_start(Gtk.Label("Linked to %s. " % (repeater.status,), xalign=0),False, False, 0)
-            label2 = Gtk.Label("PL %s, Offset %s, %s" % (repeater.pl, repeater.offset, repeater.url), xalign=0)
+            label2 = Gtk.Label("PL %s, Offset %s, %s" % (repeater.pl, displayOffset, repeater.url), xalign=0)
         except ValueError:
             #Not connected to number node
             if float(repeater.freq) == 0:
                 label2 = Gtk.Label(repeater.city, xalign=0)
             else:
-                label2 = Gtk.Label("%s. PL %s, Offset %s, %s" % (repeater.status, repeater.pl, repeater.offset, repeater.url), xalign=0)
+                label2 = Gtk.Label("%s. PL %s, Offset %s, %s" % (repeater.status, repeater.pl, displayOffset, repeater.url), xalign=0)
         
         label3 = Gtk.Label(repeater.description, xalign=0)
         innerhbox.pack_start(label2, True, True, 0)

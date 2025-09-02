@@ -17,5 +17,6 @@ class HearHamRepeater(Repeater):
         self.lon = float(jsonObject['longitude'])
         self.city = jsonObject['city']
         self.pl = jsonObject['encode']
+        self.decode = jsonObject['decode']
         self.freq = jsonObject['frequency']/1000000
         self.offset = jsonObject['offset']/1000000
