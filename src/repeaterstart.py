@@ -50,7 +50,7 @@ from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
-from HelpDialog import HelpDialog
+# from HelpDialog import HelpDialog
 from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
@@ -1017,9 +1017,25 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         
     def helppro(self, el):
         if os.path.exists(userFile('.hidden')):#self.settingsDialog.config['licenseKEY']:
-            help = HelpDialog(self, el.repeater)
-            help.run()
-            help.destroy()
+            #Fails with soup2/3 conflict, run new process...
+            pro = userFile('.hidden')
+            loadfile = 'file://'+pro+"/index.html"
+            repeater = el.repeater
+            if not os.path.exists(pro):
+                os.mkdir(pro)
+            with open(os.path.join(pro,'base.data.js'), 'w') as outfile:
+                outfile.write("CALL=\""+repeater.callsign+"\"; "+
+                    "FREQ=\""+str(repeater.freq)+"\";"+
+                    "OFFSET=\""+str(repeater.offset)+"\";"+
+                    "MODE=\""+str(repeater.mode)+"\";"+
+                    "PL=\""+str(repeater.pl)+"\";"+
+                    "PLDECODE=\""+str(repeater.decode if hasattr(repeater,'decode') else "")+"\";"+
+                    "DISABLED="+('true' if repeater.isDown() else 'false')+";"+
+                    "URL=\""+str(repeater.url)+"\";");
+            subprocess.Popen(["python3", "HelpDialog.py"])
+            #help = HelpDialog(self, el.repeater)
+            #help.run()
+            #help.destroy()
         else:
             dialogWindow = Gtk.MessageDialog(self,
               Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
