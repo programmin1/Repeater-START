@@ -22,6 +22,18 @@ import os.path
 import random
 import subprocess
 import json
+import gettext
+import pathlib
+
+localedir = pathlib.Path(__file__).resolve().parent / 'lang'
+gettext.textdomain('repeaterstart')
+espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
+gettext.bindtextdomain('repeaterstart', localedir)
+if os.environ['LANG'][:2]=='es':
+    espanol.install()
+    __ = espanol.gettext
+else:
+    __ = gettext.gettext
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -217,7 +229,7 @@ class UI(Gtk.Window):
         self.back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
         self.back_button.connect('clicked', self.back_clicked)
         
-        self.cache_button = Gtk.Button('Cache')
+        self.cache_button = Gtk.Button(__('Cache'))
         self.cache_button.connect('clicked', self.cache_clicked)
         if self.mainScreen.get_width() < 800:
             #Just room for icon on Librem/phone.
@@ -225,7 +237,7 @@ class UI(Gtk.Window):
             self.add_button.set_image(Gtk.Image(icon_name="list-add",
                        icon_size=Gtk.IconSize.LARGE_TOOLBAR))
         else:
-            self.add_button = Gtk.Button('Add Repeater')
+            self.add_button = Gtk.Button(__('Add Repeater'))
         self.add_button.connect('clicked', self.add_repeater_clicked)
         
         overlay = Gtk.Overlay()
@@ -546,7 +558,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     dlg = Gtk.MessageDialog(self, 
                         0,Gtk.MessageType.QUESTION,
                         Gtk.ButtonsType.YES_NO,
-                        'There is an update available. Do you wish to install it?\n'+
+                        __('There is an update available. Do you wish to install it?')+'\n'+
                         updateinfo['message'])
                     response = dlg.run()
                     if response == Gtk.ResponseType.YES:
@@ -800,7 +812,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.WARNING,
             Gtk.ButtonsType.OK,
-            'Please allow geolocation to use this feature.')
+            __('Please allow geolocation to use this feature.'))
         response = dlg.run()
         dlg.destroy()
         subprocess.Popen(['gnome-control-center','privacy'])
@@ -973,7 +985,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         helpbtn.repeater = repeater;
         helpbtn.set_image(Gtk.Image(icon_name='help-browser',
                       icon_size=self.PLAYSIZE))
-        helpbtn.set_tooltip_text('Radio Setup Help')
+        helpbtn.set_tooltip_text(__('Radio Setup Help'))
         helpbtn.connect('clicked', self.helppro)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
@@ -1041,7 +1053,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
               Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
               Gtk.MessageType.QUESTION,
               Gtk.ButtonsType.OK_CANCEL,
-              "Enter your License key for quick, step by step repeater programming instructions.")
+              __("Enter your License key for quick, step by step repeater programming instructions.") )
             dialogBox = dialogWindow.get_content_area()
             userEntry = Gtk.Entry()
             userEntry.set_size_request(60,12);
