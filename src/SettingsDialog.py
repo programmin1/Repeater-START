@@ -1,6 +1,7 @@
 import gi
 import os
 import urllib
+import locale
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
@@ -9,6 +10,7 @@ import configparser
 from CsvRepeaterListing import CsvRepeaterListing
 from RepeaterStartCommon import userFile
 from urllib.error import HTTPError
+import pathlib
 
 class SettingsDialog:
     def __init__(self, parentWin):
@@ -93,6 +95,12 @@ class SettingsDialog:
         #Create GtkDialog
         self.builder = Gtk.Builder()
         self.builder.add_from_file('SettingsDialog.glade')
+        domain = 'repeaterstart'
+        localepath= os.path.dirname(__file__)+'/lang'
+        locale.bindtextdomain(domain , localepath )
+        #locale.textdomain(domain)
+        #locale.setlocale(locale.LC_ALL,'')
+        self.builder.set_translation_domain(domain )
         self.builder.connect_signals(self)
         self.dialog = self.builder.get_object('SettingsDialog')
         #self.dialog.set_parent(parentWin)

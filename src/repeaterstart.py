@@ -202,7 +202,7 @@ class UI(Gtk.Window):
         pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('locateme.svg',width=21,height=21,preserve_aspect_ratio=True)
         GoImg = Gtk.Image.new_from_pixbuf(pixbuf)
         home_button.set_image(GoImg)
-        home_button.set_tooltip_text('Find my location')
+        home_button.set_tooltip_text(__('Find my location'))
         search_button = Gtk.Button()
         search_button.set_image(Gtk.Image(icon_name='edit-find',
                       icon_size=Gtk.IconSize.LARGE_TOOLBAR))
@@ -226,7 +226,9 @@ class UI(Gtk.Window):
                        
         
         home_button.connect('clicked', self.home_clicked)
-        self.back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
+
+        self.back_button = Gtk.Button(label=_('Back'))
+        self.back_button.set_image(Gtk.Image.new_from_icon_name('go-previous', Gtk.IconSize.BUTTON))
         self.back_button.connect('clicked', self.back_clicked)
         
         self.cache_button = Gtk.Button(__('Cache'))
@@ -254,7 +256,7 @@ class UI(Gtk.Window):
             pro_container = Gtk.HBox()
             pro_inner = Gtk.VBox()
             pro_inner.override_background_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(1.0, 1.0, 0.8, 1.0))
-            pro = Gtk.Label("Go premium!", xalign=1)
+            pro = Gtk.Label(__("Go premium!"), xalign=1)
             pro.set_has_window(True)
             pro.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
             pro.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.9, 0.0, 0.0, 1.0))
@@ -357,12 +359,12 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 if listBoxRow.repeaterID>0:
                     rcgoto.connect("activate", self.followlink)
                     rcgoto.repeaterID = listBoxRow.repeaterID
-                    rcgoto.set_label("_Goto Repeater Page")
+                    rcgoto.set_label(__("_Goto Repeater Page"))
                     rcgoto.show()
                     rccomment = Gtk.ImageMenuItem.new()
                     rccomment.connect("activate", self.followcommentlink)
                     rccomment.repeaterID = listBoxRow.repeaterID
-                    rccomment.set_label("Comment")
+                    rccomment.set_label(__("Comment"))
                     rccomment.show()
                     rcmenu.append(rcgoto)
                     rcmenu.append(rccomment)
@@ -378,7 +380,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 elif int(listBoxRow.irlp)>0:
                     rcgoto.connect("activate", self.followIRLPlink)
                     rcgoto.irlp = listBoxRow.irlp
-                    rcgoto.set_label("_Goto IRLP Status page")
+                    rcgoto.set_label(__("_Goto IRLP Status page"))
                     rcgoto.show()
                     rcmenu.append(rcgoto)
                 else:
@@ -857,9 +859,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.renderedLon = self.osm.props.longitude
 
             t = time.time()
-            text = 'Map Center: %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
+            text = __('Map Center:')+' %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
             if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
-                text += ' (Repeaters filtered in settings)'
+                text += ' '+__('(Repeaters filtered in settings)')
             self.latlon_entry.set_text(
                 text % (
                     latLongToLocator(self.renderedLat, self.renderedLon),

@@ -28,5 +28,35 @@ msgstr "Encontrar mi ubicación"
 msgid "Radio Setup Help"
 msgstr "Ayuda de configuración de radio"
 
+msgid "Go premium!"
+msgstr "Comprar premium!"
+
+msgid "_Goto IRLP Status page"
+msgstr "Ir a la página de IRLP"
+
+msgid "Comment"
+msgstr "Comentar"
+
+msgid "Map Center:"
+msgstr "Centro de mapas:"
+
+msgid "(Repeaters filtered in settings)"
+msgstr "(Repetidores filtrados en la configuración)"
+
+msgid "_Goto Repeater Page"
+msgstr "Ir a la página de repitador"
+
+msgid "Frequency Filter"
+msgstr "Filtro de frecuencia"
+
+msgid "Units"
+msgstr "Unidades"
+
+msgid "Allow download away from wired/wifi"
+msgstr "Permitir la descarga fuera de cable/wifi"
+
+msgid "Background Downloads"
+msgstr "Descargas en segundo plano"
+
 msgid "There is an update available. Do you wish to install it?"
 msgstr "Hay un actualizaction disponsible. Te gusta installar?"
