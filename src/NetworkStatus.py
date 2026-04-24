@@ -22,7 +22,7 @@ try:
     if __name__ == '__main__':
         print('Mobile data status: %s' % (isMobileData(), ))
 
-except ImportError:
+except (ImportError, ValueError) as err:
 
     def get_active_interfaces():
         net_path = "/sys/class/net"
