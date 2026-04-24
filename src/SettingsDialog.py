@@ -2,6 +2,12 @@ import gi
 import os
 import urllib
 import locale
+import pathlib
+import locale
+
+localedir = pathlib.Path(__file__).resolve().parent / 'lang'
+locale.bindtextdomain('repeaterstart', localedir)
+locale.textdomain('repeaterstart')
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
@@ -94,13 +100,14 @@ class SettingsDialog:
     def show(self):
         #Create GtkDialog
         self.builder = Gtk.Builder()
-        self.builder.add_from_file('SettingsDialog.glade')
         domain = 'repeaterstart'
         localepath= os.path.dirname(__file__)+'/lang'
         locale.bindtextdomain(domain , localepath )
         #locale.textdomain(domain)
         #locale.setlocale(locale.LC_ALL,'')
         self.builder.set_translation_domain(domain )
+        locale.textdomain('repeaterstart')
+        self.builder.add_from_file('SettingsDialog.glade')
         self.builder.connect_signals(self)
         self.dialog = self.builder.get_object('SettingsDialog')
         #self.dialog.set_parent(parentWin)

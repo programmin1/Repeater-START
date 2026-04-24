@@ -23,17 +23,22 @@ import random
 import subprocess
 import json
 import gettext
+import locale
 import pathlib
 
 localedir = pathlib.Path(__file__).resolve().parent / 'lang'
-gettext.textdomain('repeaterstart')
 espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
-gettext.bindtextdomain('repeaterstart', localedir)
-if os.environ['LANG'][:2]=='es':
-    espanol.install()
-    __ = espanol.gettext
+locale.textdomain('repeaterstart')
+if os.environ.get('LANG', '')[:2] == 'es':
+    lang = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
 else:
-    __ = gettext.gettext
+    lang = gettext.NullTranslations()
+lang.install()
+__ = lang.gettext
+
+localedir_str = str(localedir)
+gettext.bindtextdomain('repeaterstart', localedir_str)
+locale.bindtextdomain('repeaterstart', localedir_str) 
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -106,7 +111,7 @@ class BackgroundDownload(Thread):
             self.finished = True
             self.success = True
         except urllib.error.URLError:
-            print("offline?")
+            print("offline? Could not get "+self.url)
             self.finished = True
         except urllib.error.HTTPError:
             print("Failed to fetch.")
@@ -227,7 +232,7 @@ class UI(Gtk.Window):
         
         home_button.connect('clicked', self.home_clicked)
 
-        self.back_button = Gtk.Button(label=_('Back'))
+        self.back_button = Gtk.Button(label=__('Back'))
         self.back_button.set_image(Gtk.Image.new_from_icon_name('go-previous', Gtk.IconSize.BUTTON))
         self.back_button.connect('clicked', self.back_clicked)
         
