@@ -34,6 +34,8 @@ class SettingsDialog:
             self.config['DownloadOptions'] = {
                 'mobile' : False
             }
+        if not 'Diagnostics' in self.config:
+            self.config['Diagnostics'] = {} #SendReport no default
         #Just ham radio constants:
         self.UHFMIN = '420'
         self.UHFMAX = '450'

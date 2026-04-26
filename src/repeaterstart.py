@@ -274,7 +274,24 @@ class UI(Gtk.Window):
         self.paned.pack1(overlay, resize=True)
         overlay.add_overlay(top_container)
         overlay.set_overlay_pass_through(top_container,True)
-        #overlay.set_overlay_pass_through(mapboxlink,False)
+        if not 'SendReport' in self.settingsDialog.config['Diagnostics']:
+            dlg = Gtk.MessageDialog(self, 
+                0,Gtk.MessageType.INFO,
+                Gtk.ButtonsType.YES_NO,
+                'Do you want to send exception reports for Repeater-START?\nChoose yes to improve reliability and notify administrators of any errors!')
+            response = dlg.run()
+            if response == Gtk.ResponseType.YES:
+                self.settingsDialog.config['Diagnostics'] = {
+                    'SendReport' : True
+                }
+            else:
+                self.settingsDialog.config['Diagnostics'] = {
+                    'SendReport' : False
+                }
+            self.settingsDialog.writeSettings()
+            dlg.destroy()
+        if self.settingsDialog.config['Diagnostics']['SendReport'] and 'False' != self.settingsDialog.config['Diagnostics']['SendReport']:
+            self.initSentry()
         hbox = Gtk.HBox(False, 0)
         hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(search_button, False, True, 0)
@@ -547,7 +564,16 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         for r in self.searchRows:
             r.destroy()
         self.searchRows = []
-        
+    
+    def initSentry(self):
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn="https://662e8ffdfdf1a8e4691990e0b9dd1911@o92400.ingest.us.sentry.io/4511273440968704",
+            # Add data like request headers and IP for users,
+            # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+            send_default_pii=True,
+        )
+        print("Errors will be reported for quality control.")
         
     def selrow(self,widget,listboxrow):
         self.osm.set_center(listboxrow.latitude, listboxrow.longitude)
