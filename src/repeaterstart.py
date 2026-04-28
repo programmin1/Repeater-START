@@ -535,14 +535,27 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     objs = json.loads(f.read().decode('utf-8'))
                     self.clearRows()
                     if len(objs) == 0:
-                        row = Gtk.ListBoxRow()
-                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                        mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
-                        hbox.pack_start(mainlbl,True,True,0)
-                        row.add(hbox)
-                        self.listbox.add(row)
-                        self.searchRows.append(row)
-                    for item in objs:
+                        try:
+                            req = urllib.request.Request(
+                                'https://hamcall.dev/'+srctext+'.json', 
+                                data=None,
+                                headers={
+                                    'User-Agent':'Repeater-START/'+self.version
+                                }
+                            )
+                            f=urllib.request.urlopen(req)#, context=ssl_context)
+                            calllookup = json.loads(f.read().decode('utf-8'))
+                            self.osm.set_center(float(calllookup['location']['lat']), float(calllookup['location']['lon']))
+                        except (urllib.error.URLError,KeyError) as e:
+                            row = Gtk.ListBoxRow()
+                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                            mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
+                            hbox.pack_start(mainlbl,True,True,0)
+                            row.add(hbox)
+                            self.listbox.add(row)
+                            self.searchRows.append(row)
+
+                    for item in objs: #Search above
                         row = Gtk.ListBoxRow()
                         row.longitude = float(item['lon'])
                         row.latitude = float(item['lat'])
@@ -553,6 +566,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         row.add(hbox)
                         self.listbox.add(row)
                         self.searchRows.append(row)
+                        
                     self.listbox.show_all()
             except urllib.error.URLError:
                 self.latlon_entry.set_text('Network error')
