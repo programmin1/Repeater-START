@@ -1,5 +1,6 @@
 import gi
 import os
+from RepeaterStartCommon import userFile
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GdkPixbuf, Pango
 
@@ -157,7 +158,16 @@ class PremiumDialog(Gtk.Dialog):
         content = self.get_content_area()
         content.set_border_width(0)
         content.set_spacing(0)
-
+        firstline = True
+        self.price = '?'
+        self.features = []
+        with open(userFile('promo.txt')) as infile:
+            for line in infile:
+                if firstline:
+                    self.price = line.strip()
+                    firstline = False
+                else:
+                    self.features.append(line.strip())
         content.add(self._build_header())
         content.add(self._build_features())
         content.add(self._build_key_section())
@@ -171,18 +181,12 @@ class PremiumDialog(Gtk.Dialog):
         title.set_halign(Gtk.Align.START)
         _add_class(title, "premium-title")
         box.pack_start(title, False, False, 0)
-
         return box
 
     def _build_features(self):
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         _add_class(outer, "premium-features")
-
-        features = [
-            "Ad-free experience & extra features on hearham.com",
-            "Offline, step-by-step repeater programming instructions",
-        ]
-        for text in features:
+        for text in self.features:
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
             check = Gtk.Label(label="✓")
             _add_class(check, "check-icon")
@@ -202,7 +206,7 @@ class PremiumDialog(Gtk.Dialog):
 
         price_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         _add_class(price_row, "price-box")
-        amount = Gtk.Label(label="$2")
+        amount = Gtk.Label(label=self.price)
         _add_class(amount, "price-amount")
         period = Gtk.Label(label=" / month · billed annually")
         _add_class(period, "price-period")
