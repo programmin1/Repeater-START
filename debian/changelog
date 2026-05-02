@@ -1,3 +1,9 @@
+repeater-start (1.0.99) beta; urgency=medium
+ * Add search for callsign.
+ * More clear premium dialog.
+ * Fixes for Raspberry Pi and other Linux, and Sentry error reporting.
+ -- Luke <luke@hearham.live>  Sat, May 2 2026 08:30:00 -0800
+
 repeater-start (1.0.3) stable; urgency=medium
  * Disabled-repeater alert and external link fix.
  * Fix offset plus or minus as applicable.
