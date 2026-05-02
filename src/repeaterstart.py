@@ -22,6 +22,23 @@ import os.path
 import random
 import subprocess
 import json
+import gettext
+import locale
+import pathlib
+
+localedir = pathlib.Path(__file__).resolve().parent / 'lang'
+espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
+locale.textdomain('repeaterstart')
+if os.environ.get('LANG', '')[:2] == 'es':
+    lang = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
+else:
+    lang = gettext.NullTranslations()
+lang.install()
+__ = lang.gettext
+
+localedir_str = str(localedir)
+gettext.bindtextdomain('repeaterstart', localedir_str)
+locale.bindtextdomain('repeaterstart', localedir_str) 
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -50,6 +67,7 @@ from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from PremiumDialog import PremiumDialog
 # from HelpDialog import HelpDialog
 from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
@@ -94,7 +112,7 @@ class BackgroundDownload(Thread):
             self.finished = True
             self.success = True
         except urllib.error.URLError:
-            print("offline?")
+            print("offline? Could not get "+self.url)
             self.finished = True
         except urllib.error.HTTPError:
             print("Failed to fetch.")
@@ -190,7 +208,7 @@ class UI(Gtk.Window):
         pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('locateme.svg',width=21,height=21,preserve_aspect_ratio=True)
         GoImg = Gtk.Image.new_from_pixbuf(pixbuf)
         home_button.set_image(GoImg)
-        home_button.set_tooltip_text('Find my location')
+        home_button.set_tooltip_text(__('Find my location'))
         search_button = Gtk.Button()
         search_button.set_image(Gtk.Image(icon_name='edit-find',
                       icon_size=Gtk.IconSize.LARGE_TOOLBAR))
@@ -214,10 +232,12 @@ class UI(Gtk.Window):
                        
         
         home_button.connect('clicked', self.home_clicked)
-        self.back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
+
+        self.back_button = Gtk.Button(label=__('Back'))
+        self.back_button.set_image(Gtk.Image.new_from_icon_name('go-previous', Gtk.IconSize.BUTTON))
         self.back_button.connect('clicked', self.back_clicked)
         
-        self.cache_button = Gtk.Button('Cache')
+        self.cache_button = Gtk.Button(__('Cache'))
         self.cache_button.connect('clicked', self.cache_clicked)
         if self.mainScreen.get_width() < 800:
             #Just room for icon on Librem/phone.
@@ -225,7 +245,7 @@ class UI(Gtk.Window):
             self.add_button.set_image(Gtk.Image(icon_name="list-add",
                        icon_size=Gtk.IconSize.LARGE_TOOLBAR))
         else:
-            self.add_button = Gtk.Button('Add Repeater')
+            self.add_button = Gtk.Button(__('Add Repeater'))
         self.add_button.connect('clicked', self.add_repeater_clicked)
         
         overlay = Gtk.Overlay()
@@ -242,7 +262,8 @@ class UI(Gtk.Window):
             pro_container = Gtk.HBox()
             pro_inner = Gtk.VBox()
             pro_inner.override_background_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(1.0, 1.0, 0.8, 1.0))
-            pro = Gtk.Label("Go premium!", xalign=1)
+            pro = Gtk.Label(__(" Go premium! "), xalign=1)
+            pro.modify_font(Pango.font_description_from_string("Ubuntu Bold 12"))
             pro.set_has_window(True)
             pro.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
             pro.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.9, 0.0, 0.0, 1.0))
@@ -255,7 +276,24 @@ class UI(Gtk.Window):
         self.paned.pack1(overlay, resize=True)
         overlay.add_overlay(top_container)
         overlay.set_overlay_pass_through(top_container,True)
-        #overlay.set_overlay_pass_through(mapboxlink,False)
+        if not 'SendReport' in self.settingsDialog.config['Diagnostics']:
+            dlg = Gtk.MessageDialog(self, 
+                0,Gtk.MessageType.INFO,
+                Gtk.ButtonsType.YES_NO,
+                'Do you want to send exception reports for Repeater-START?\nChoose yes to improve reliability and notify administrators of any errors!')
+            response = dlg.run()
+            if response == Gtk.ResponseType.YES:
+                self.settingsDialog.config['Diagnostics'] = {
+                    'SendReport' : True
+                }
+            else:
+                self.settingsDialog.config['Diagnostics'] = {
+                    'SendReport' : False
+                }
+            self.settingsDialog.writeSettings()
+            dlg.destroy()
+        if self.settingsDialog.config['Diagnostics']['SendReport'] and 'False' != self.settingsDialog.config['Diagnostics']['SendReport']:
+            self.initSentry()
         hbox = Gtk.HBox(False, 0)
         hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(search_button, False, True, 0)
@@ -345,12 +383,12 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 if listBoxRow.repeaterID>0:
                     rcgoto.connect("activate", self.followlink)
                     rcgoto.repeaterID = listBoxRow.repeaterID
-                    rcgoto.set_label("_Goto Repeater Page")
+                    rcgoto.set_label(__("_Goto Repeater Page"))
                     rcgoto.show()
                     rccomment = Gtk.ImageMenuItem.new()
                     rccomment.connect("activate", self.followcommentlink)
                     rccomment.repeaterID = listBoxRow.repeaterID
-                    rccomment.set_label("Comment")
+                    rccomment.set_label(__("Comment"))
                     rccomment.show()
                     rcmenu.append(rcgoto)
                     rcmenu.append(rccomment)
@@ -366,7 +404,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 elif int(listBoxRow.irlp)>0:
                     rcgoto.connect("activate", self.followIRLPlink)
                     rcgoto.irlp = listBoxRow.irlp
-                    rcgoto.set_label("_Goto IRLP Status page")
+                    rcgoto.set_label(__("_Goto IRLP Status page"))
                     rcgoto.show()
                     rcmenu.append(rcgoto)
                 else:
@@ -374,8 +412,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 rcmenu.popup(None, None, None,None,
                           event.button, moment)
     
-    def gopremium(self, obj, obj2):
-        os.system('xdg-open "https://hearham.com/gopremium"')
+    def gopremium(self, obj=None, obj2=None):
+        dlg = PremiumDialog(self)
+        response = dlg.run()
+        licenseKey = dlg.get_license_key()
+        dlg.destroy()
+        if len(licenseKey):
+            self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
+            self.settingsDialog.writeSettings()
+            self.downloadBackground()
     
     def followIRLPlink(self,menuItem):
         os.system('xdg-open "https://www.irlp.net/status/index.php?nodeid=%s"' % (menuItem.irlp,) )
@@ -499,14 +544,27 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     objs = json.loads(f.read().decode('utf-8'))
                     self.clearRows()
                     if len(objs) == 0:
-                        row = Gtk.ListBoxRow()
-                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                        mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
-                        hbox.pack_start(mainlbl,True,True,0)
-                        row.add(hbox)
-                        self.listbox.add(row)
-                        self.searchRows.append(row)
-                    for item in objs:
+                        try:
+                            req = urllib.request.Request(
+                                'https://hamcall.dev/'+srctext+'.json', 
+                                data=None,
+                                headers={
+                                    'User-Agent':'Repeater-START/'+self.version
+                                }
+                            )
+                            f=urllib.request.urlopen(req)#, context=ssl_context)
+                            calllookup = json.loads(f.read().decode('utf-8'))
+                            self.osm.set_center(float(calllookup['location']['lat']), float(calllookup['location']['lon']))
+                        except (urllib.error.URLError,KeyError) as e:
+                            row = Gtk.ListBoxRow()
+                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                            mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
+                            hbox.pack_start(mainlbl,True,True,0)
+                            row.add(hbox)
+                            self.listbox.add(row)
+                            self.searchRows.append(row)
+
+                    for item in objs: #Search above
                         row = Gtk.ListBoxRow()
                         row.longitude = float(item['lon'])
                         row.latitude = float(item['lat'])
@@ -517,6 +575,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         row.add(hbox)
                         self.listbox.add(row)
                         self.searchRows.append(row)
+                        
                     self.listbox.show_all()
             except urllib.error.URLError:
                 self.latlon_entry.set_text('Network error')
@@ -528,7 +587,16 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         for r in self.searchRows:
             r.destroy()
         self.searchRows = []
-        
+    
+    def initSentry(self):
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn="https://662e8ffdfdf1a8e4691990e0b9dd1911@o92400.ingest.us.sentry.io/4511273440968704",
+            # Add data like request headers and IP for users,
+            # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+            send_default_pii=True,
+        )
+        print("Errors will be reported for quality control.")
         
     def selrow(self,widget,listboxrow):
         self.osm.set_center(listboxrow.latitude, listboxrow.longitude)
@@ -546,7 +614,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     dlg = Gtk.MessageDialog(self, 
                         0,Gtk.MessageType.QUESTION,
                         Gtk.ButtonsType.YES_NO,
-                        'There is an update available. Do you wish to install it?\n'+
+                        __('There is an update available. Do you wish to install it?')+'\n'+
                         updateinfo['message'])
                     response = dlg.run()
                     if response == Gtk.ResponseType.YES:
@@ -693,6 +761,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 if 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
                     self.premiumUpdate = BackgroundDownloadZip('https://hearham.com/api/repeaters/v1/radios?key='+self.settingsDialog.config['DownloadOptions']['licenseKEY'], userFile('premium.zip'))
                     self.premiumUpdate.start()
+                else:
+                    promo = BackgroundDownload('https://hearham.com/premiumpromo.txt', userFile('promo.txt'))
+                    promo.start()
                 
                 for rpt in self.settingsDialog.config['Repeaters']:
                     url = self.settingsDialog.config['Repeaters'][rpt]
@@ -800,7 +871,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.WARNING,
             Gtk.ButtonsType.OK,
-            'Please allow geolocation to use this feature.')
+            __('Please allow geolocation to use this feature.'))
         response = dlg.run()
         dlg.destroy()
         subprocess.Popen(['gnome-control-center','privacy'])
@@ -845,9 +916,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.renderedLon = self.osm.props.longitude
 
             t = time.time()
-            text = 'Map Center: %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
+            text = __('Map Center:')+' %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
             if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
-                text += ' (Repeaters filtered in settings)'
+                text += ' '+__('(Repeaters filtered in settings)')
             self.latlon_entry.set_text(
                 text % (
                     latLongToLocator(self.renderedLat, self.renderedLon),
@@ -973,7 +1044,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         helpbtn.repeater = repeater;
         helpbtn.set_image(Gtk.Image(icon_name='help-browser',
                       icon_size=self.PLAYSIZE))
-        helpbtn.set_tooltip_text('Radio Setup Help')
+        helpbtn.set_tooltip_text(__('Radio Setup Help'))
         helpbtn.connect('clicked', self.helppro)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
@@ -1037,23 +1108,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             #help.run()
             #help.destroy()
         else:
-            dialogWindow = Gtk.MessageDialog(self,
-              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-              Gtk.MessageType.QUESTION,
-              Gtk.ButtonsType.OK_CANCEL,
-              "Enter your License key for quick, step by step repeater programming instructions.")
-            dialogBox = dialogWindow.get_content_area()
-            userEntry = Gtk.Entry()
-            userEntry.set_size_request(60,12);
-            dialogBox.pack_end(userEntry, False, False, 0)
-            dialogWindow.show_all()
-            response = dialogWindow.run()
-            licenseKey = userEntry.get_text()
-            dialogWindow.destroy()
-            if len(licenseKey):
-                self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
-                self.settingsDialog.writeSettings()
-                self.downloadBackground()
+            self.gopremium()
 
     def on_button_press(self, osm, event):
         state = event.get_state()

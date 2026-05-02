@@ -1,6 +1,13 @@
 import gi
 import os
 import urllib
+import locale
+import pathlib
+import locale
+
+localedir = pathlib.Path(__file__).resolve().parent / 'lang'
+locale.bindtextdomain('repeaterstart', localedir)
+locale.textdomain('repeaterstart')
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
@@ -9,6 +16,7 @@ import configparser
 from CsvRepeaterListing import CsvRepeaterListing
 from RepeaterStartCommon import userFile
 from urllib.error import HTTPError
+import pathlib
 
 class SettingsDialog:
     def __init__(self, parentWin):
@@ -26,6 +34,8 @@ class SettingsDialog:
             self.config['DownloadOptions'] = {
                 'mobile' : False
             }
+        if not 'Diagnostics' in self.config:
+            self.config['Diagnostics'] = {} #SendReport no default
         #Just ham radio constants:
         self.UHFMIN = '420'
         self.UHFMAX = '450'
@@ -92,6 +102,13 @@ class SettingsDialog:
     def show(self):
         #Create GtkDialog
         self.builder = Gtk.Builder()
+        domain = 'repeaterstart'
+        localepath= os.path.dirname(__file__)+'/lang'
+        locale.bindtextdomain(domain , localepath )
+        #locale.textdomain(domain)
+        #locale.setlocale(locale.LC_ALL,'')
+        self.builder.set_translation_domain(domain )
+        locale.textdomain('repeaterstart')
         self.builder.add_from_file('SettingsDialog.glade')
         self.builder.connect_signals(self)
         self.dialog = self.builder.get_object('SettingsDialog')
