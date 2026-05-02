@@ -120,7 +120,11 @@ CSS = """
 
 def _apply_css():
     provider = Gtk.CssProvider()
-    provider.load_from_data(CSS)
+    try:
+        provider.load_from_data(CSS)#new
+    except TypeError:
+        provider.load_from_data(CSS.encode("utf-8"))#old
+
     Gtk.StyleContext.add_provider_for_screen(
         Gdk.Screen.get_default(),
         provider,
