@@ -67,6 +67,7 @@ from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from PremiumDialog import PremiumDialog
 # from HelpDialog import HelpDialog
 from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
@@ -261,7 +262,8 @@ class UI(Gtk.Window):
             pro_container = Gtk.HBox()
             pro_inner = Gtk.VBox()
             pro_inner.override_background_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(1.0, 1.0, 0.8, 1.0))
-            pro = Gtk.Label(__("Go premium!"), xalign=1)
+            pro = Gtk.Label(__(" Go premium! "), xalign=1)
+            pro.modify_font(Pango.font_description_from_string("Ubuntu Bold 12"))
             pro.set_has_window(True)
             pro.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
             pro.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.9, 0.0, 0.0, 1.0))
@@ -410,8 +412,15 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 rcmenu.popup(None, None, None,None,
                           event.button, moment)
     
-    def gopremium(self, obj, obj2):
-        os.system('xdg-open "https://hearham.com/gopremium"')
+    def gopremium(self, obj=None, obj2=None):
+        dlg = PremiumDialog(self)
+        response = dlg.run()
+        licenseKey = dlg.get_license_key()
+        dlg.destroy()
+        if len(licenseKey):
+            self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
+            self.settingsDialog.writeSettings()
+            self.downloadBackground()
     
     def followIRLPlink(self,menuItem):
         os.system('xdg-open "https://www.irlp.net/status/index.php?nodeid=%s"' % (menuItem.irlp,) )
@@ -752,6 +761,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 if 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
                     self.premiumUpdate = BackgroundDownloadZip('https://hearham.com/api/repeaters/v1/radios?key='+self.settingsDialog.config['DownloadOptions']['licenseKEY'], userFile('premium.zip'))
                     self.premiumUpdate.start()
+                else:
+                    promo = BackgroundDownload('https://hearham.com/premiumpromo.txt', userFile('promo.txt'))
+                    promo.start()
                 
                 for rpt in self.settingsDialog.config['Repeaters']:
                     url = self.settingsDialog.config['Repeaters'][rpt]
@@ -1096,23 +1108,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             #help.run()
             #help.destroy()
         else:
-            dialogWindow = Gtk.MessageDialog(self,
-              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-              Gtk.MessageType.QUESTION,
-              Gtk.ButtonsType.OK_CANCEL,
-              __("Enter your License key for quick, step by step repeater programming instructions.") )
-            dialogBox = dialogWindow.get_content_area()
-            userEntry = Gtk.Entry()
-            userEntry.set_size_request(60,12);
-            dialogBox.pack_end(userEntry, False, False, 0)
-            dialogWindow.show_all()
-            response = dialogWindow.run()
-            licenseKey = userEntry.get_text()
-            dialogWindow.destroy()
-            if len(licenseKey):
-                self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
-                self.settingsDialog.writeSettings()
-                self.downloadBackground()
+            self.gopremium()
 
     def on_button_press(self, osm, event):
         state = event.get_state()
