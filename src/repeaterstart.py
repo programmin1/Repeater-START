@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2025 Luke Bryan.
+(C) 2019-2026 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -18,6 +18,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys
+#necessary for Ubuntu/GNOME desktop file icon match:
+sys.argv[0] = 'repeaterSTART' # GTK reads argv[0] to set WM_CLASS
 import os.path
 import random
 import subprocess
@@ -177,6 +179,8 @@ class UI(Gtk.Window):
         if os.path.exists(icon_app_path):
             pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
             surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
+            self.set_icon(pixbuf)
+
         self.towerDownPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
         self.towerPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
         
@@ -590,12 +594,20 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     
     def initSentry(self):
         import sentry_sdk
+        import platform
+        useros = open('/etc/issue').read().strip() if os.path.exists('/etc/issue') else 'Unknown'
         sentry_sdk.init(
             dsn="https://662e8ffdfdf1a8e4691990e0b9dd1911@o92400.ingest.us.sentry.io/4511273440968704",
             # Add data like request headers and IP for users,
             # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
             send_default_pii=True,
         )
+        sentry_sdk.set_tags({
+            'Platform': platform.platform(), #Linux version
+            'Issue': useros, # Ubuntu version
+            'Machine' : platform.machine(),
+            'CPU': platform.processor()
+		})
         print("Errors will be reported for quality control.")
         
     def selrow(self,widget,listboxrow):
