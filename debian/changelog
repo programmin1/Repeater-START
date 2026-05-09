@@ -1,3 +1,8 @@
+repeater-start (1.0.999) beta; urgency=medium
+ * Fixed icon later Ubuntu/GNOME.
+ * Clicking tower icon shows information.
+ -- Luke <luke@hearham.live>  Sat, May 9 2026 11:59:00 -0800
+
 repeater-start (1.0.99) beta; urgency=medium
  * Add search for callsign.
  * More clear premium dialog.
