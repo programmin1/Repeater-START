@@ -194,6 +194,7 @@ class UI(Gtk.Window):
         self.osm.connect('button_press_event', self.on_button_press)
         self.osm.connect('button_release_event', self.on_button_release)
         self.osm.connect('changed', self.on_map_change)
+        self.osm.connect('size-allocate', self.resized_map)
 
         #connect keyboard shortcuts
         self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.FULLSCREEN, Gdk.keyval_from_name("F11"))
@@ -298,6 +299,31 @@ class UI(Gtk.Window):
             dlg.destroy()
         if self.settingsDialog.config['Diagnostics']['SendReport'] and 'False' != self.settingsDialog.config['Diagnostics']['SendReport']:
             self.initSentry()
+        #popup with repeater info when clicked on map -
+        self.map_info_label = Gtk.Label()
+        self.map_info_label.set_line_wrap(True)
+        self.map_info_label.set_no_show_all(True)
+        self.map_info_label.set_markup("")
+
+        # Store click position so get-child-position can use it
+        self._info_label_x = 0
+        self._info_label_y = 0
+        ctx = self.map_info_label.get_style_context()
+        css = b"""
+        label {
+            background-color: rgba(0,0,0,0.65);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        """
+        provider = Gtk.CssProvider()
+        provider.load_from_data(css)
+        ctx.add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        overlay.add_overlay(self.map_info_label)
+        # This signal fires whenever GTK needs to know where to place the overlay child
+        overlay.connect("get-child-position", self.on_get_label_position)
         hbox = Gtk.HBox(False, 0)
         hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(search_button, False, True, 0)
@@ -415,6 +441,32 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     print('Unknown data')
                 rcmenu.popup(None, None, None,None,
                           event.button, moment)
+    
+    def resized_map(self, obj, obj2):
+        self.map_info_label.hide()
+
+    def on_get_label_position(self, overlay, widget, allocation):
+        if widget is not self.map_info_label:
+            return False
+
+        # Ask the label how big it wants to be
+        _, preferred_width  = widget.get_preferred_width()
+        _, preferred_height = widget.get_preferred_height()
+        map_width  = overlay.get_allocated_width()
+        map_height = overlay.get_allocated_height()
+
+        x = self._info_label_x + 3   # offset right of cursor
+        y = self._info_label_y - preferred_height - 10  # float above cursor
+
+        # Clamp so it never goes off the edge of the map
+        x = max(0, min(x, map_width  - preferred_width))
+        y = max(0, min(y, map_height - preferred_height))
+
+        allocation.x      = x
+        allocation.y      = y
+        allocation.width  = preferred_width
+        allocation.height = preferred_height
+        return True  # True means "I handled it, use this allocation"
     
     def gopremium(self, obj=None, obj2=None):
         dlg = PremiumDialog(self)
@@ -939,6 +991,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 )
             )
             self.refreshListing()
+            self.map_info_label.hide()
             print('on_map_change time: %s' % (time.time()  - t))
     
     def refreshListing(self):
@@ -1125,20 +1178,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def on_button_press(self, osm, event):
         state = event.get_state()
         lat,lon = self.osm.get_event_location(event).get_degrees()
-        print('clicked %s,%s' % (lat,lon))
+        #print('clicked %s,%s' % (lat,lon))
         near = 999999
         nearest = None
         self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
-        cnt = 0
-        return
-        for item in self.allrepeaters:
-            distance = item.distance(lat,lon)
-            self.addToList(item, lat,lon)
-            print(distance)
-            cnt += 1
-            if cnt > 5:
-                break
-        self.listbox.show_all()
 
         left    = event.button == 1 and state == 0
         middle  = event.button == 2 or (event.button == 1 and state & Gdk.ModifierType.SHIFT_MASK)
@@ -1148,20 +1191,35 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         GDK_2BUTTON_PRESS = getattr(Gdk.EventType, "2BUTTON_PRESS")
         GDK_3BUTTON_PRESS = getattr(Gdk.EventType, "3BUTTON_PRESS")
 
-        if event.type == GDK_3BUTTON_PRESS:
-            if middle:
-                if self.last_image is not None:
-                    self.osm.image_remove(self.last_image)
-                    self.last_image = None
-        elif event.type == GDK_2BUTTON_PRESS:
-            if left:
-                self.osm.gps_add(lat, lon, heading=random.random()*360)
-            if middle:
-                pb = GdkPixbuf.Pixbuf.new_from_file_at_size ("poi.png", 24,24)
-                self.last_image = self.osm.image_add(lat,lon,pb)
-            if right:
-                pass
-
+        closeRepeater = None
+        closeDistance = 9E99
+        if left:
+            for item in self.allrepeaters:
+                distance = item.distance(lat,lon)
+                if distance < closeDistance:
+                    closeDistance = distance
+                    closeRepeater = item
+            #print(closeDistance)
+            #print(closeRepeater)
+            if closeRepeater and closeDistance < 10:
+                # event.x / event.y are already pixel coords within the map widget
+                #self._info_label_x = int(event.x)
+                #self._info_label_y = int(event.y)
+                point = osmgpsmap.MapPoint.new_degrees(closeRepeater.lat, closeRepeater.lon)
+                x, y = self.osm.convert_geographic_to_screen(point)
+                self._info_label_x = x
+                self._info_label_y = y
+                #Is it close - in pixels?
+                if abs(event.x-x) < 15 and abs(event.y-y) < 15:
+                    markup = (
+                        f"<b>{closeRepeater.callsign}</b>  {closeRepeater.freq} MHz"
+                    )
+                    self.map_info_label.set_markup(markup)
+                    self.map_info_label.show()
+                else:
+                    self.map_info_label.hide()
+            else:
+                self.map_info_label.hide()
 
     def playRTLSDR(self, mhz):
         if self.rtllistener:
