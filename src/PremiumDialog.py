@@ -53,10 +53,8 @@ CSS = """
     font-size: 13px;
 }
 .btn-purchase {
-    background-color: #1a7a3a;
     border: 1px solid #2ecc71;
     border-radius: 6px;
-    color: #c8f5d8;
     font-size: 18px;
     font-weight: bold;
     padding: 9px 20px;
@@ -103,10 +101,8 @@ CSS = """
 }
 
 .btn-activate {
-    background-color: #1a4a9e;
     border: 1px solid #4a9eff;
     border-radius: 6px;
-    color: #e8f0ff;
     font-size: 13px;
     letter-spacing: 1px;
     padding: 9px 24px;

@@ -18,6 +18,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys
+import signal
+from time import sleep
 #necessary for Ubuntu/GNOME desktop file icon match:
 sys.argv[0] = 'repeaterSTART' # GTK reads argv[0] to set WM_CLASS
 import os.path
@@ -90,13 +92,25 @@ class RTLSDRRun(Thread):
     def run(self):
         #TODO test commands more
         #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
-        cmds = self.cmd.split('|')
-        self.proc = subprocess.Popen(cmds[0].split(),
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
-        subprocess.check_output(cmds[1].split(),stdin=self.proc.stdout)
-        for line in iter(self.proc.stdout.readline, b''):
-            line = line.decode('utf-8')
+        self.proc = subprocess.Popen(self.cmd, shell=True, start_new_session=True)
+        # for line in iter(self.proc.stdout.readline, b''):
+        #     line = line.decode('utf-8')
+    
+    def stop(self):
+        print('STOPPING===============')
+        os.system('killall rtl_fm')
+        #Not sure why this all doesn't work... 
+        # One at a time or this does not work.
+        # try:
+        #     # Kill the entire process group
+        #     os.kill(os.getpgid(self.proc.pid), signal.SIGINT)
+        # except ProcessLookupError:
+        #     pass
+        # try:
+        #     self.proc.send_signal(signal.SIGINT)
+        # except ProcessLookupError:
+        #     pass
+        # self.proc.wait()
 
 class BackgroundDownload(Thread):
     def __init__(self, url, filename):
@@ -1124,21 +1138,25 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.listbox.add(row)
         
     def playpause(self, btn):
-        if btn.selFrequency != self.playingfreq:
-            self.playRTLSDR(btn.selFrequency)
-            self.playingfreq = btn.selFrequency
-            for b in self.playBtns:
-                b.set_image(Gtk.Image(icon_name='media-playback-start',
-                      icon_size=self.PLAYSIZE))
-            #All others are stopped.
-            btn.set_image(Gtk.Image(icon_name='media-playback-stop',
-                      icon_size=self.PLAYSIZE))
+        if( os.system('rtl_fm') < 257 and os.system('play --version') < 257 ):
+            if btn.selFrequency != self.playingfreq:
+                self.playRTLSDR(btn.selFrequency)
+                self.playingfreq = btn.selFrequency
+                for b in self.playBtns:
+                    b.set_image(Gtk.Image(icon_name='media-playback-start',
+                        icon_size=self.PLAYSIZE))
+                #All others are stopped.
+                btn.set_image(Gtk.Image(icon_name='media-playback-stop',
+                        icon_size=self.PLAYSIZE))
+            else:
+                if self.rtllistener:
+                    self.rtllistener.stop()
+                self.playingfreq = None
+                btn.set_image(Gtk.Image(icon_name='media-playback-start',
+                        icon_size=self.PLAYSIZE))
         else:
-            if self.rtllistener:
-                self.rtllistener.proc.kill()
-            self.playingfreq = None
-            btn.set_image(Gtk.Image(icon_name='media-playback-start',
-                      icon_size=self.PLAYSIZE))
+            #Prompt to install:
+            os.system('pkexec --user root apt install -y rtl-sdr sox')
 
     def goLinkIRLP(self, btn):
         label = btn.get_label()
@@ -1223,9 +1241,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def playRTLSDR(self, mhz):
         if self.rtllistener:
-            self.rtllistener.proc.kill()
+            self.rtllistener.stop()
+            sleep(1)
         # -l 450 is higher squelch.
-        cmd = 'rtl_fm -M fm -f '+mhz+'M -l 450 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
+        cmd = 'rtl_fm -M fm -f '+str(mhz)+'M -s 200k -r 24k -l 50 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
         print(cmd)
         self.rtllistener = RTLSDRRun( cmd )
         self.rtllistener.start()
@@ -1239,7 +1258,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         with open(userFile('lastPosition.json'), 'w') as outfile:
             outfile.write(json.dumps(stateObj))
         if self.rtllistener:
-            self.rtllistener.proc.kill()
+            self.rtllistener.stop()
         Gtk.main_quit()
     
 
