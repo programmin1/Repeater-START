@@ -1,3 +1,9 @@
+
+repeater-start (1.0.9999) beta; urgency=medium
+ * Minor fixes for dialogs.
+ * Fix for the RTLSDR play button and installation if command not available.
+ -- Luke <luke@hearham.live>  Sat, May 16 2026 23:45:00 -0800
+
 repeater-start (1.0.999) beta; urgency=medium
  * Fixed icon later Ubuntu/GNOME.
  * Clicking tower icon shows information.
