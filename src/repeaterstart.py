@@ -93,8 +93,6 @@ class RTLSDRRun(Thread):
         #TODO test commands more
         #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
         self.proc = subprocess.Popen(self.cmd, shell=True, start_new_session=True)
-        # for line in iter(self.proc.stdout.readline, b''):
-        #     line = line.decode('utf-8')
     
     def stop(self):
         print('STOPPING===============')
@@ -1147,6 +1145,21 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         icon_size=self.PLAYSIZE))
                 #All others are stopped.
                 btn.set_image(Gtk.Image(icon_name='media-playback-stop',
+                        icon_size=self.PLAYSIZE))
+                sleep(0.5)
+                poll = self.rtllistener.proc.poll()
+                if poll is not None:
+                    # Process exited early, warn and set back the button.
+                    dialogWindow = Gtk.MessageDialog(self,
+                        Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+                        Gtk.MessageType.ERROR,
+                        Gtk.ButtonsType.OK,
+                        'RTLSDR device not connected?')
+                    dialogWindow.set_title('Device not found')
+                    dialogWindow.show_all()
+                    response = dialogWindow.run()
+                    dialogWindow.destroy()
+                    btn.set_image(Gtk.Image(icon_name='media-playback-start',
                         icon_size=self.PLAYSIZE))
             else:
                 if self.rtllistener:
