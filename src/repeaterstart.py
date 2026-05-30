@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 Repeater START - Showing The Amateur Repeaters Tool
-(C) 2019-2024 Luke Bryan.
+(C) 2019-2026 Luke Bryan.
 OSMGPSMap examples are (C) Hadley Rich 2008 <hads@nice.net.nz>
 
 This is free software: you can redistribute it and/or modify it
@@ -18,10 +18,30 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 """
     
 import sys
+import signal
+from time import sleep
 import os.path
 import random
 import subprocess
 import json
+import gettext
+import locale
+import pathlib
+
+localedir = pathlib.Path(__file__).resolve().parent / 'lang'
+espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
+#Todo set up with Windows...
+#locale.textdomain('repeaterstart')
+if os.environ.get('LANG', '')[:2] == 'es':
+    lang = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
+else:
+    lang = gettext.NullTranslations()
+lang.install()
+__ = lang.gettext
+
+localedir_str = str(localedir)
+gettext.bindtextdomain('repeaterstart', localedir_str)
+#locale.bindtextdomain('repeaterstart', localedir_str) 
 
 import os
 if getattr(sys, 'frozen', False):
@@ -68,7 +88,8 @@ from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
-from HelpDialog import HelpDialog
+from PremiumDialog import PremiumDialog
+# from HelpDialog import HelpDialog
 from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
@@ -91,13 +112,23 @@ class RTLSDRRun(Thread):
     def run(self):
         #TODO test commands more
         #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
-        cmds = self.cmd.split('|')
-        self.proc = subprocess.Popen(cmds[0].split(),
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
-        subprocess.check_output(cmds[1].split(),stdin=self.proc.stdout)
-        for line in iter(self.proc.stdout.readline, b''):
-            line = line.decode('utf-8')
+        self.proc = subprocess.Popen(self.cmd, shell=True, start_new_session=True)
+    
+    def stop(self):
+        print('STOPPING===============')
+        os.system('killall rtl_fm')
+        #Not sure why this all doesn't work... 
+        # One at a time or this does not work.
+        # try:
+        #     # Kill the entire process group
+        #     os.kill(os.getpgid(self.proc.pid), signal.SIGINT)
+        # except ProcessLookupError:
+        #     pass
+        # try:
+        #     self.proc.send_signal(signal.SIGINT)
+        # except ProcessLookupError:
+        #     pass
+        # self.proc.wait()
 
 class BackgroundDownload(Thread):
     def __init__(self, url, filename):
@@ -114,9 +145,9 @@ class BackgroundDownload(Thread):
             shutil.move( tmpfile, self.filename )
             self.finished = True
             self.success = True
-        # except urllib.error.URLError:
-        #     print("offline?")
-        #     self.finished = True
+        except urllib.error.URLError:
+            print("offline? Could not get "+self.url)
+            self.finished = True
         except urllib.error.HTTPError:
             print("Failed to fetch.")
             self.finished = True
@@ -134,7 +165,7 @@ class BackgroundDownloadZip(BackgroundDownload):
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '1.0.3'
+        self.version = '1.1-beta3'
         self.mode = ''
         self.set_default_size(600, 600)
         self.connect('destroy', self.cleanup)
@@ -169,12 +200,14 @@ class UI(Gtk.Window):
                 )
         #Now map-source required or it gets some mysterious null pointers and render issue:
         self.osm.set_property("map-source", osmgpsmap.MapSource_t.LAST)
-        self.osm.set_property("repo-uri", privatetilesapi)
+        #self.osm.set_property("repo-uri", privatetilesapi)
         
         icon_app_path = '../resources/repeaterSTART.svg'
         if os.path.exists(icon_app_path):
             pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
             surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
+            self.set_icon(pixbuf)
+
         self.towerDownPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
         self.towerPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
         
@@ -192,6 +225,7 @@ class UI(Gtk.Window):
         self.osm.connect('button_press_event', self.on_button_press)
         self.osm.connect('button_release_event', self.on_button_release)
         self.osm.connect('changed', self.on_map_change)
+        self.osm.connect('size-allocate', self.resized_map)
 
         #connect keyboard shortcuts
         self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.FULLSCREEN, Gdk.keyval_from_name("F11"))
@@ -235,10 +269,12 @@ class UI(Gtk.Window):
                        
         
         #home_button.connect('clicked', self.home_clicked)
-        self.back_button = Gtk.Button(stock=Gtk.STOCK_GO_BACK)
+
+        self.back_button = Gtk.Button(label=__('Back'))
+        self.back_button.set_image(Gtk.Image.new_from_icon_name('go-previous', Gtk.IconSize.BUTTON))
         self.back_button.connect('clicked', self.back_clicked)
         
-        self.cache_button = Gtk.Button('Cache')
+        self.cache_button = Gtk.Button(__('Cache'))
         self.cache_button.connect('clicked', self.cache_clicked)
         if self.mainScreen.get_width() < 800:
             #Just room for icon on Librem/phone.
@@ -246,7 +282,7 @@ class UI(Gtk.Window):
             self.add_button.set_image(Gtk.Image(icon_name="list-add",
                        icon_size=Gtk.IconSize.LARGE_TOOLBAR))
         else:
-            self.add_button = Gtk.Button('Add Repeater')
+            self.add_button = Gtk.Button(__('Add Repeater'))
         self.add_button.connect('clicked', self.add_repeater_clicked)
         
         overlay = Gtk.Overlay()
@@ -263,7 +299,8 @@ class UI(Gtk.Window):
             pro_container = Gtk.HBox()
             pro_inner = Gtk.VBox()
             pro_inner.override_background_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(1.0, 1.0, 0.8, 1.0))
-            pro = Gtk.Label("Go premium!", xalign=1)
+            pro = Gtk.Label(__(" Go premium! "), xalign=1)
+            pro.modify_font(Pango.font_description_from_string("Ubuntu Bold 12"))
             pro.set_has_window(True)
             pro.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
             pro.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.9, 0.0, 0.0, 1.0))
@@ -276,9 +313,50 @@ class UI(Gtk.Window):
         self.paned.pack1(overlay, resize=True)
         overlay.add_overlay(top_container)
         overlay.set_overlay_pass_through(top_container,True)
-        
-        #overlay.set_overlay_pass_through(mapboxlink,False)
-        hbox = Gtk.HBox()#False, 0)
+        if not 'SendReport' in self.settingsDialog.config['Diagnostics']:
+            dlg = Gtk.MessageDialog(self, 
+                0,Gtk.MessageType.INFO,
+                Gtk.ButtonsType.YES_NO,
+                'Do you want to send exception reports for Repeater-START?\nChoose yes to improve reliability and notify administrators of any errors!')
+            response = dlg.run()
+            if response == Gtk.ResponseType.YES:
+                self.settingsDialog.config['Diagnostics'] = {
+                    'SendReport' : True
+                }
+            else:
+                self.settingsDialog.config['Diagnostics'] = {
+                    'SendReport' : False
+                }
+            self.settingsDialog.writeSettings()
+            dlg.destroy()
+        if self.settingsDialog.config['Diagnostics']['SendReport'] and 'False' != self.settingsDialog.config['Diagnostics']['SendReport']:
+            self.initSentry()
+        #popup with repeater info when clicked on map -
+        self.map_info_label = Gtk.Label()
+        self.map_info_label.set_line_wrap(True)
+        self.map_info_label.set_no_show_all(True)
+        self.map_info_label.set_markup("")
+
+        # Store click position so get-child-position can use it
+        self._info_label_x = 0
+        self._info_label_y = 0
+        ctx = self.map_info_label.get_style_context()
+        css = b"""
+        label {
+            background-color: rgba(0,0,0,0.65);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        """
+        provider = Gtk.CssProvider()
+        provider.load_from_data(css)
+        ctx.add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        overlay.add_overlay(self.map_info_label)
+        # This signal fires whenever GTK needs to know where to place the overlay child
+        overlay.connect("get-child-position", self.on_get_label_position)
+        hbox = Gtk.HBox(False, 0)
         #hbox.pack_start(home_button, False, True, 0)
         hbox.pack_start(search_button, False, True, 0)
         hbox.pack_start(self.search_text, False, True, 0)
@@ -349,12 +427,12 @@ class UI(Gtk.Window):
                 if listBoxRow.repeaterID>0:
                     rcgoto.connect("activate", self.followlink)
                     rcgoto.repeaterID = listBoxRow.repeaterID
-                    rcgoto.set_label("_Goto Repeater Page")
+                    rcgoto.set_label(__("_Goto Repeater Page"))
                     rcgoto.show()
                     rccomment = Gtk.ImageMenuItem.new()
                     rccomment.connect("activate", self.followcommentlink)
                     rccomment.repeaterID = listBoxRow.repeaterID
-                    rccomment.set_label("Comment")
+                    rccomment.set_label(__("Comment"))
                     rccomment.show()
                     rcmenu.append(rcgoto)
                     rcmenu.append(rccomment)
@@ -370,14 +448,50 @@ class UI(Gtk.Window):
                 elif int(listBoxRow.irlp)>0:
                     rcgoto.connect("activate", self.followIRLPlink)
                     rcgoto.irlp = listBoxRow.irlp
-                    rcgoto.set_label("_Goto IRLP Status page")
+                    rcgoto.set_label(__("_Goto IRLP Status page"))
                     rcgoto.show()
                     rcmenu.append(rcgoto)
                 else:
                     print('Unknown data')
                 rcmenu.popup(None, None, None,None,
                           event.button, moment)
-                          
+    
+    def resized_map(self, obj, obj2):
+        self.map_info_label.hide()
+
+    def on_get_label_position(self, overlay, widget, allocation):
+        if widget is not self.map_info_label:
+            return False
+
+        # Ask the label how big it wants to be
+        _, preferred_width  = widget.get_preferred_width()
+        _, preferred_height = widget.get_preferred_height()
+        map_width  = overlay.get_allocated_width()
+        map_height = overlay.get_allocated_height()
+
+        x = self._info_label_x + 3   # offset right of cursor
+        y = self._info_label_y - preferred_height - 10  # float above cursor
+
+        # Clamp so it never goes off the edge of the map
+        x = max(0, min(x, map_width  - preferred_width))
+        y = max(0, min(y, map_height - preferred_height))
+
+        allocation.x      = x
+        allocation.y      = y
+        allocation.width  = preferred_width
+        allocation.height = preferred_height
+        return True  # True means "I handled it, use this allocation"
+    
+    def gopremium(self, obj=None, obj2=None):
+        dlg = PremiumDialog(self)
+        response = dlg.run()
+        licenseKey = dlg.get_license_key()
+        dlg.destroy()
+        if len(licenseKey):
+            self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
+            self.settingsDialog.writeSettings()
+            self.downloadBackground()
+    
     def followIRLPlink(self,menuItem):
         os.system('start https://www.irlp.net/status/index.php?nodeid=%s' % (menuItem.irlp,) )
         
@@ -561,14 +675,27 @@ class UI(Gtk.Window):
                     objs = json.loads(f.read().decode('utf-8'))
                     self.clearRows()
                     if len(objs) == 0:
-                        row = Gtk.ListBoxRow()
-                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                        mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
-                        hbox.pack_start(mainlbl,True,True,0)
-                        row.add(hbox)
-                        self.listbox.add(row)
-                        self.searchRows.append(row)
-                    for item in objs:
+                        try:
+                            req = urllib.request.Request(
+                                'https://hamcall.dev/'+srctext+'.json', 
+                                data=None,
+                                headers={
+                                    'User-Agent':'Repeater-START/'+self.version
+                                }
+                            )
+                            f=urllib.request.urlopen(req)#, context=ssl_context)
+                            calllookup = json.loads(f.read().decode('utf-8'))
+                            self.osm.set_center(float(calllookup['location']['lat']), float(calllookup['location']['lon']))
+                        except (urllib.error.URLError,KeyError) as e:
+                            row = Gtk.ListBoxRow()
+                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                            mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
+                            hbox.pack_start(mainlbl,True,True,0)
+                            row.add(hbox)
+                            self.listbox.add(row)
+                            self.searchRows.append(row)
+
+                    for item in objs: #Search above
                         row = Gtk.ListBoxRow()
                         row.longitude = float(item['lon'])
                         row.latitude = float(item['lat'])
@@ -579,6 +706,7 @@ class UI(Gtk.Window):
                         row.add(hbox)
                         self.listbox.add(row)
                         self.searchRows.append(row)
+                        
                     self.listbox.show_all()
             except urllib.error.URLError:
                 self.latlon_entry.set_text('Network error')
@@ -590,7 +718,24 @@ class UI(Gtk.Window):
         for r in self.searchRows:
             r.destroy()
         self.searchRows = []
-        
+    
+    def initSentry(self):
+        import sentry_sdk
+        import platform
+        useros = open('/etc/issue').read().strip() if os.path.exists('/etc/issue') else 'Unknown'
+        sentry_sdk.init(
+            dsn="https://662e8ffdfdf1a8e4691990e0b9dd1911@o92400.ingest.us.sentry.io/4511273440968704",
+            # Add data like request headers and IP for users,
+            # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+            send_default_pii=True,
+        )
+        sentry_sdk.set_tags({
+            'Platform': platform.platform(), #Linux version
+            'Issue': useros, # Ubuntu version
+            'Machine' : platform.machine(),
+            'CPU': platform.processor()
+		})
+        print("Errors will be reported for quality control.")
         
     def selrow(self,widget,listboxrow):
         self.osm.set_center(listboxrow.latitude, listboxrow.longitude)
@@ -608,7 +753,7 @@ class UI(Gtk.Window):
                     dlg = Gtk.MessageDialog(self, 
                         0,Gtk.MessageType.QUESTION,
                         Gtk.ButtonsType.YES_NO,
-                        'There is an update available. Do you wish to install it?\n'+
+                        __('There is an update available. Do you wish to install it?')+'\n'+
                         updateinfo['message'])
                     response = dlg.run()
                     if response == Gtk.ResponseType.YES:
@@ -749,7 +894,18 @@ class UI(Gtk.Window):
 
     def downloadBackground(self):
         if self.bgdl == None:
-            self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/windows', userFile('update.response'))
+            if True: #not(isMobileData()) or self.settingsDialog.getAllowMobile():
+                self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/windows', userFile('update.response'))
+                self.checkUpdate.start()
+                if 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
+                    self.premiumUpdate = BackgroundDownloadZip('https://hearham.com/api/repeaters/v1/radios?key='+self.settingsDialog.config['DownloadOptions']['licenseKEY'], userFile('premium.zip'))
+                    self.premiumUpdate.start()
+                else:
+                    promo = BackgroundDownload('https://hearham.com/premiumpromo.txt', userFile('promo.txt'))
+                    promo.start()
+                
+                for rpt in self.settingsDialog.config['Repeaters']:
+                    url = self.settingsDialog.config['Repeaters'][rpt]
 
             self.checkUpdate.start()
             
@@ -858,7 +1014,7 @@ class UI(Gtk.Window):
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.WARNING,
             Gtk.ButtonsType.OK,
-            'Please allow geolocation to use this feature.')
+            __('Please allow geolocation to use this feature.'))
         response = dlg.run()
         dlg.destroy()
         subprocess.Popen(['gnome-control-center','privacy'])
@@ -904,9 +1060,9 @@ class UI(Gtk.Window):
             self.renderedLon = self.osm.props.longitude
 
             t = time.time()
-            text = 'Map Center: %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
+            text = __('Map Center:')+' %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
             if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
-                text += ' (Repeaters filtered in settings)'
+                text += ' '+__('(Repeaters filtered in settings)')
             self.latlon_entry.set_text(
                 text % (
                     latLongToLocator(self.renderedLat, self.renderedLon),
@@ -915,6 +1071,7 @@ class UI(Gtk.Window):
                 )
             )
             self.refreshListing()
+            self.map_info_label.hide()
             print('on_map_change time: %s' % (time.time()  - t))
     
     def refreshListing(self):
@@ -1032,7 +1189,7 @@ class UI(Gtk.Window):
         helpbtn.repeater = repeater;
         helpbtn.set_image(Gtk.Image(icon_name='help-browser',
                       icon_size=self.PLAYSIZE))
-        helpbtn.set_tooltip_text('Radio Setup Help')
+        helpbtn.set_tooltip_text(__('Radio Setup Help'))
         helpbtn.connect('clicked', self.helppro)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
@@ -1047,21 +1204,40 @@ class UI(Gtk.Window):
         self.listbox.add(row)
         
     def playpause(self, btn):
-        if btn.selFrequency != self.playingfreq:
-            self.playRTLSDR(btn.selFrequency)
-            self.playingfreq = btn.selFrequency
-            for b in self.playBtns:
-                b.set_image(Gtk.Image(icon_name='media-playback-start',
-                      icon_size=self.PLAYSIZE))
-            #All others are stopped.
-            btn.set_image(Gtk.Image(icon_name='media-playback-stop',
-                      icon_size=self.PLAYSIZE))
+        if( os.system('rtl_fm') < 257 and os.system('play --version') < 257 ):
+            if btn.selFrequency != self.playingfreq:
+                self.playRTLSDR(btn.selFrequency)
+                self.playingfreq = btn.selFrequency
+                for b in self.playBtns:
+                    b.set_image(Gtk.Image(icon_name='media-playback-start',
+                        icon_size=self.PLAYSIZE))
+                #All others are stopped.
+                btn.set_image(Gtk.Image(icon_name='media-playback-stop',
+                        icon_size=self.PLAYSIZE))
+                sleep(0.5)
+                poll = self.rtllistener.proc.poll()
+                if poll is not None:
+                    # Process exited early, warn and set back the button.
+                    dialogWindow = Gtk.MessageDialog(self,
+                        Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+                        Gtk.MessageType.ERROR,
+                        Gtk.ButtonsType.OK,
+                        'RTLSDR device not connected?')
+                    dialogWindow.set_title('Device not found')
+                    dialogWindow.show_all()
+                    response = dialogWindow.run()
+                    dialogWindow.destroy()
+                    btn.set_image(Gtk.Image(icon_name='media-playback-start',
+                        icon_size=self.PLAYSIZE))
+            else:
+                if self.rtllistener:
+                    self.rtllistener.stop()
+                self.playingfreq = None
+                btn.set_image(Gtk.Image(icon_name='media-playback-start',
+                        icon_size=self.PLAYSIZE))
         else:
-            if self.rtllistener:
-                self.rtllistener.proc.kill()
-            self.playingfreq = None
-            btn.set_image(Gtk.Image(icon_name='media-playback-start',
-                      icon_size=self.PLAYSIZE))
+            #Prompt to install:
+            os.system('pkexec --user root apt install -y rtl-sdr sox')
 
     def goLinkIRLP(self, btn):
         label = btn.get_label()
@@ -1078,41 +1254,15 @@ class UI(Gtk.Window):
         if os.path.exists(userFile('.hidden')):#self.settingsDialog.config['licenseKEY']:
             help = HelpDialog(self, el.repeater)
         else:
-            dialogWindow = Gtk.MessageDialog(self,
-              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-              Gtk.MessageType.QUESTION,
-              Gtk.ButtonsType.OK_CANCEL,
-              "Enter your License key for quick, step by step repeater programming instructions.")
-            dialogBox = dialogWindow.get_content_area()
-            userEntry = Gtk.Entry()
-            userEntry.set_size_request(60,12);
-            dialogBox.pack_end(userEntry, False, False, 0)
-            dialogWindow.show_all()
-            response = dialogWindow.run()
-            licenseKey = userEntry.get_text()
-            dialogWindow.destroy()
-            if len(licenseKey):
-                self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
-                self.settingsDialog.writeSettings()
-                self.downloadBackground()
+            self.gopremium()
 
     def on_button_press(self, osm, event):
         state = event.get_state()
         lat,lon = self.osm.get_event_location(event).get_degrees()
-        print('clicked %s,%s' % (lat,lon))
+        #print('clicked %s,%s' % (lat,lon))
         near = 999999
         nearest = None
         self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
-        cnt = 0
-        return
-        for item in self.allrepeaters:
-            distance = item.distance(lat,lon)
-            self.addToList(item, lat,lon)
-            print(distance)
-            cnt += 1
-            if cnt > 5:
-                break
-        self.listbox.show_all()
 
         left    = event.button == 1 and state == 0
         middle  = event.button == 2 or (event.button == 1 and state & Gdk.ModifierType.SHIFT_MASK)
@@ -1122,26 +1272,42 @@ class UI(Gtk.Window):
         GDK_2BUTTON_PRESS = getattr(Gdk.EventType, "2BUTTON_PRESS")
         GDK_3BUTTON_PRESS = getattr(Gdk.EventType, "3BUTTON_PRESS")
 
-        if event.type == GDK_3BUTTON_PRESS:
-            if middle:
-                if self.last_image is not None:
-                    self.osm.image_remove(self.last_image)
-                    self.last_image = None
-        elif event.type == GDK_2BUTTON_PRESS:
-            if left:
-                self.osm.gps_add(lat, lon, heading=random.random()*360)
-            if middle:
-                pb = GdkPixbuf.Pixbuf.new_from_file_at_size ("poi.png", 24,24)
-                self.last_image = self.osm.image_add(lat,lon,pb)
-            if right:
-                pass
-
+        closeRepeater = None
+        closeDistance = 9E99
+        if left:
+            for item in self.allrepeaters:
+                distance = item.distance(lat,lon)
+                if distance < closeDistance:
+                    closeDistance = distance
+                    closeRepeater = item
+            #print(closeDistance)
+            #print(closeRepeater)
+            if closeRepeater and closeDistance < 10:
+                # event.x / event.y are already pixel coords within the map widget
+                #self._info_label_x = int(event.x)
+                #self._info_label_y = int(event.y)
+                point = osmgpsmap.MapPoint.new_degrees(closeRepeater.lat, closeRepeater.lon)
+                x, y = self.osm.convert_geographic_to_screen(point)
+                self._info_label_x = x
+                self._info_label_y = y
+                #Is it close - in pixels?
+                if abs(event.x-x) < 15 and abs(event.y-y) < 15:
+                    markup = (
+                        f"<b>{closeRepeater.callsign}</b>  {closeRepeater.freq} MHz"
+                    )
+                    self.map_info_label.set_markup(markup)
+                    self.map_info_label.show()
+                else:
+                    self.map_info_label.hide()
+            else:
+                self.map_info_label.hide()
 
     def playRTLSDR(self, mhz):
         if self.rtllistener:
-            self.rtllistener.proc.kill()
+            self.rtllistener.stop()
+            sleep(1)
         # -l 450 is higher squelch.
-        cmd = 'rtl_fm -M fm -f '+mhz+'M -l 450 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
+        cmd = 'rtl_fm -M fm -f '+str(mhz)+'M -s 200k -r 24k -l 50 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
         print(cmd)
         self.rtllistener = RTLSDRRun( cmd )
         self.rtllistener.start()
@@ -1155,7 +1321,7 @@ class UI(Gtk.Window):
         with open(userFile('lastPosition.json'), 'w') as outfile:
             outfile.write(json.dumps(stateObj))
         if self.rtllistener:
-            self.rtllistener.proc.kill()
+            self.rtllistener.stop()
         Gtk.main_quit()
     
 

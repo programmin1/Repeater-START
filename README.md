@@ -9,7 +9,7 @@ You can download this program for Windows 8, Windows 10, recent Ubuntu and Debia
 Simply download and open the file, select install. OR, if you prefer command line:
 
 ```
-sudo dpkg -i ./repeater-start_0.7_all.deb
+sudo dpkg -i ./repeater-start_1.0_all.deb
 ```
 
 
@@ -45,7 +45,14 @@ Android:
 
 [<img src="https://hearham.com/img/GP.png"
      alt="Get it on Google Play"
-     height="80">](https://play.google.com/store/apps/details?id=com.hearham.repeaterstartpremium)
+     height="50">](https://play.google.com/store/apps/details?id=com.hearham.repeaterstartpremium)
+
+
+iOS:
+
+[<img src="https://hearham.com/img/badgeapple.png"
+     alt="Get it on Apple store"
+     height="50">](https://apps.apple.com/us/app/repeaterstart-premium/id6738314675)
 
 
 [![Liberapay](https://img.shields.io/liberapay/patrons/deepdaikon.svg?logo=liberapay)](https://liberapay.com/Programmin/)

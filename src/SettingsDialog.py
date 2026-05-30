@@ -1,6 +1,13 @@
 import gi
 import os
 import urllib
+import locale
+import pathlib
+import locale
+
+localedir = pathlib.Path(__file__).resolve().parent / 'lang'
+#locale.bindtextdomain('repeaterstart', localedir)
+#locale.textdomain('repeaterstart')
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
@@ -9,6 +16,7 @@ import configparser
 from CsvRepeaterListing import CsvRepeaterListing
 from RepeaterStartCommon import userFile
 from urllib.error import HTTPError
+import pathlib
 
 class SettingsDialog:
     def __init__(self, parentWin):
@@ -26,7 +34,8 @@ class SettingsDialog:
             self.config['DownloadOptions'] = {
                 #'mobile' : False #not windows
             }
-
+        if not 'Diagnostics' in self.config:
+            self.config['Diagnostics'] = {} #SendReport no default
         #Just ham radio constants:
         self.UHFMIN = '420'
         self.UHFMAX = '450'
@@ -87,6 +96,13 @@ class SettingsDialog:
     def show(self):
         #Create GtkDialog
         self.builder = Gtk.Builder()
+        domain = 'repeaterstart'
+        localepath= os.path.dirname(__file__)+'/lang'
+        locale.bindtextdomain(domain , localepath )
+        #locale.textdomain(domain)
+        #locale.setlocale(locale.LC_ALL,'')
+        self.builder.set_translation_domain(domain )
+        locale.textdomain('repeaterstart')
         self.builder.add_from_file('SettingsDialog.glade')
         self.builder.connect_signals(self)
         self.dialog = self.builder.get_object('SettingsDialog')
@@ -201,30 +217,47 @@ class SettingsDialog:
         
     def rmRpt(self, *args):
         row = self.repolist.get_selected_row()
-        for item in self.config['Repeaters']:
-            if self.config['Repeaters'][item] == row.url:
-                del self.config['Repeaters'][item]
-                #TODO clean up files
-        self.repolist.remove( row )
+        if row:
+            for item in self.config['Repeaters']:
+                if self.config['Repeaters'][item] == row.url:
+                    del self.config['Repeaters'][item]
+                    #TODO clean up files
+            self.repolist.remove( row )
+        else:
+            self.msgNoneSelected()
         
     def propertyRpt(self, *args):
-        url = self.doDialog('Re/set current selected url:',self.repolist.get_selected_row().url)
-        tmpfile = userFile('repeater-temp-file.csv')
-        if url and url.find('.csv') > -1 :
-            #verify and get the name:
-            try:
-                #TODO should be in a background thread somehow
-                urllib.request.urlretrieve(url, tmpfile)
-                csv = CsvRepeaterListing(tmpfile)
-                if csv.name:
-                    self.config['Repeaters'][csv.name] = url
-                    self.repolist.get_selected_row().url = url
-                    self.repolist.show_all()
-                else:
-                    self.doMsg('Error:','Invalid entry? Must be a .csv file available on a server.')
-                os.remove(tmpfile)
-            except HTTPError:
-                self.doMsg('Error:','HTTP error- Must be a .csv file available on a server.')
+        if self.repolist.get_selected_row():
+            url = self.doDialog('Re/set current selected url:',self.repolist.get_selected_row().url)
+            tmpfile = userFile('repeater-temp-file.csv')
+            if url and url.find('.csv') > -1 :
+                #verify and get the name:
+                try:
+                    #TODO should be in a background thread somehow
+                    urllib.request.urlretrieve(url, tmpfile)
+                    csv = CsvRepeaterListing(tmpfile)
+                    if csv.name:
+                        self.config['Repeaters'][csv.name] = url
+                        self.repolist.get_selected_row().url = url
+                        self.repolist.show_all()
+                    else:
+                        self.doMsg('Error:','Invalid entry? Must be a .csv file available on a server.')
+                    os.remove(tmpfile)
+                except HTTPError:
+                    self.doMsg('Error:','HTTP error- Must be a .csv file available on a server.')
+        else:
+            self.msgNoneSelected()
+    
+    def msgNoneSelected(self):
+        dialogWindow = Gtk.MessageDialog(self.dialog,
+            Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+            Gtk.MessageType.ERROR,
+            Gtk.ButtonsType.OK,
+            'Select an entry first.')
+        dialogWindow.set_title('Choose a source')
+        dialogWindow.show_all()
+        response = dialogWindow.run()
+        dialogWindow.destroy()
             
 
     def onDestroy(self, *args):
