@@ -98,11 +98,11 @@ class SettingsDialog:
         self.builder = Gtk.Builder()
         domain = 'repeaterstart'
         localepath= os.path.dirname(__file__)+'/lang'
-        locale.bindtextdomain(domain , localepath )
+        #locale.bindtextdomain(domain , localepath )
         #locale.textdomain(domain)
         #locale.setlocale(locale.LC_ALL,'')
         self.builder.set_translation_domain(domain )
-        locale.textdomain('repeaterstart')
+        #locale.textdomain('repeaterstart')
         self.builder.add_from_file('SettingsDialog.glade')
         self.builder.connect_signals(self)
         self.dialog = self.builder.get_object('SettingsDialog')

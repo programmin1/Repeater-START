@@ -27,6 +27,7 @@ import json
 import gettext
 import locale
 import pathlib
+import webbrowser
 
 localedir = pathlib.Path(__file__).resolve().parent / 'lang'
 espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
@@ -88,6 +89,7 @@ from RepeaterStartCommon import userFile
 from IRLPNode import IRLPNode
 from HearHamRepeater import HearHamRepeater
 from SettingsDialog import SettingsDialog
+from HelpDialog import HelpDialog
 from PremiumDialog import PremiumDialog
 # from HelpDialog import HelpDialog
 from CsvRepeaterListing import CsvRepeaterListing
@@ -493,16 +495,16 @@ class UI(Gtk.Window):
             self.downloadBackground()
     
     def followIRLPlink(self,menuItem):
-        os.system('start https://www.irlp.net/status/index.php?nodeid=%s' % (menuItem.irlp,) )
+        webbrowser.open('https://www.irlp.net/status/index.php?nodeid=%s' % (menuItem.irlp,) )
         
     def followlink(self,menuItem):
-        os.system('start https://hearham.com/repeaters/%s?src=%s' % (menuItem.repeaterID,os.name) )
+        webbrowser.open('https://hearham.com/repeaters/%s?src=%s' % (menuItem.repeaterID,os.name) )
 
     def followcommentlink(self,menuItem):
-        os.system('start https://hearham.com/repeaters/%s/comment?src=%s' % (menuItem.repeaterID,os.name) )
+        webbrowser.open('https://hearham.com/repeaters/%s/comment?src=%s' % (menuItem.repeaterID,os.name) )
 
     def followextralink(self,menuItem):
-        os.system('start %s' % (menuItem.url.replace('"','%22'),) )
+        webbrowser.open(menuItem.url)
         
     def buttonPress(self,listbox, event):
         """
@@ -549,21 +551,6 @@ class UI(Gtk.Window):
                     print('Unknown data')
                 rcmenu.popup(None, None, None,None,
                           event.button, moment)
-    
-    def gopremium(self, obj, obj2):
-        os.system('start https://hearham.com/gopremium')
-    
-    def followIRLPlink(self,menuItem):
-        os.system('start https://www.irlp.net/status/index.php?nodeid=%s' % (menuItem.irlp,) )
-        
-    def followlink(self,menuItem):
-        os.system('start https://hearham.com/repeaters/%s?src=%s' % (menuItem.repeaterID,os.name) )
-
-    def followcommentlink(self,menuItem):
-        os.system('start https://hearham.com/repeaters/%s/comment?src=%s' % (menuItem.repeaterID,os.name) )
-
-    def followextralink(self,menuItem):
-        os.system('start "%s"' % (menuItem.url.replace('"','%22'),) )
         
     def setViews(self):
         if self.mode == 'search':
@@ -906,27 +893,19 @@ class UI(Gtk.Window):
                 
                 for rpt in self.settingsDialog.config['Repeaters']:
                     url = self.settingsDialog.config['Repeaters'][rpt]
+                    if url.find('hearham.com/api/repeaters/v1') >-1:
+                        self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
+                        self.bgdl.start()
+                        
+                        self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', userFile('repeaters.json'))
+                        self.hearhamdl.start()
 
-            self.checkUpdate.start()
-            
-            if 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
-                self.premiumUpdate = BackgroundDownloadZip('https://hearham.com/api/repeaters/v1/radios?key='+self.settingsDialog.config['DownloadOptions']['licenseKEY'], userFile('premium.zip'))
-                self.premiumUpdate.start()
-            for rpt in self.settingsDialog.config['Repeaters']:
-                url = self.settingsDialog.config['Repeaters'][rpt]
-                if url.find('hearham.com/api/repeaters/v1') >-1:
-                    self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
-                    self.bgdl.start()
-                    
-                    self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', userFile('repeaters.json'))
-                    self.hearhamdl.start()
-
-                elif url.find('.csv') >-1:
-                    csv = BackgroundDownload(url, userFile('rpt-'+rpt+'.csv'))
-                    csv.start()
-                else:
-                    print('Unknown repeater list not added : '+url)    
-            #Call again 10m later
+                    elif url.find('.csv') >-1:
+                        csv = BackgroundDownload(url, userFile('rpt-'+rpt+'.csv'))
+                        csv.start()
+                    else:
+                        print('Unknown repeater list not added : '+url)    
+                #Call again 10m later
 
             GLib.timeout_add(600000, self.downloadBackground)
             if 0 == len(self.allrepeaters):
