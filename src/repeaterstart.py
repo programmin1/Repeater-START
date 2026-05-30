@@ -207,6 +207,7 @@ class UI(Gtk.Window):
         self.osm.connect('button_release_event', self.on_button_release)
         self.osm.connect('changed', self.on_map_change)
         self.osm.connect('size-allocate', self.resized_map)
+        self.osm.connect("draw", self.on_draw)
 
         #connect keyboard shortcuts
         self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.FULLSCREEN, Gdk.keyval_from_name("F11"))
@@ -456,6 +457,11 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     
     def resized_map(self, obj, obj2):
         self.map_info_label.hide()
+
+    def on_draw(self, widget, cr):
+        target = cr.get_target()
+        print(f"Surface: {target.get_width()}x{target.get_height()} ")
+        return False
 
     def on_get_label_position(self, overlay, widget, allocation):
         if widget is not self.map_info_label:
@@ -718,10 +724,14 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         minimum = self.settingsDialog.getMinFilter()
         maximum = self.settingsDialog.getMaxFilter()
         self.allrepeaters = []
-
+        count = 0 # Limiting displayed - to see the memory error is not the thousands of repeaters!
+        # It apparently is due to fractional scaling not the standard 100% px for px.
         for rpt in self.settingsDialog.config['Repeaters']:
+            if count > 20:
+                break
             url = self.settingsDialog.config['Repeaters'][rpt]
             if url.find('hearham.com/api/repeaters/v1') >-1:
+                count += 1
                 #The standard repeaters shown:
                 irlpfile = userFile('irlp.txt')
                 repeatersfile = userFile('repeaters.json')
@@ -736,6 +746,9 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     print('WARNING IRLP FILE NOT LOADED')
                 if os.path.exists(repeatersfile):
                     for repeater in json.load(open(repeatersfile)):
+                        count += 1
+                        if count > 20:
+                            break;
                         #IRLP has been done in direct pull above.
                         if repeater['group'] != 'IRLP':
                             #Slow LibOSM issue https://github.com/nzjrs/osm-gps-map/issues/104
@@ -744,6 +757,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                 else:
                     print('WARNING: REPEATERS FILE NOT LOADED')
             else:
+                count += 1
                 customfile = userFile('rpt-'+rpt+'.csv')
                 if os.path.exists(customfile):
                     csv = CsvRepeaterListing(customfile)
@@ -763,7 +777,6 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                     iconDown = GdkPixbuf.Pixbuf.new_from_data(pixels, icon.get_colorspace(), icon.get_has_alpha(),
                                         icon.get_bits_per_sample(), icon.get_width(),
                                         icon.get_height(), icon.get_rowstride())
-
                     for r in csv.repeaters:
                         if r.isDown():
                             self.addRepeaterWithIcon(r, minimum, maximum, iconDown)   
