@@ -1,5 +1,6 @@
 import gi
 import os
+import webbrowser
 from RepeaterStartCommon import userFile
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GdkPixbuf, Pango
@@ -258,7 +259,7 @@ class PremiumDialog(Gtk.Dialog):
         return outer
 
     def _on_purchase_clicked(self, _btn):
-        os.system('xdg-open "https://hearham.com/gopremium"')
+        webbrowser.open("https://hearham.com/gopremium")
 
     def get_license_key(self):
         """Return the text typed into the license key field."""

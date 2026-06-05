@@ -114,23 +114,11 @@ class RTLSDRRun(Thread):
     def run(self):
         #TODO test commands more
         #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
-        self.proc = subprocess.Popen(self.cmd, shell=True, start_new_session=True)
+        self.proc = subprocess.Popen(self.cmd, cwd="./rtl-sdr-32bit-20260531", shell=True, start_new_session=True)
     
     def stop(self):
         print('STOPPING===============')
-        os.system('killall rtl_fm')
-        #Not sure why this all doesn't work... 
-        # One at a time or this does not work.
-        # try:
-        #     # Kill the entire process group
-        #     os.kill(os.getpgid(self.proc.pid), signal.SIGINT)
-        # except ProcessLookupError:
-        #     pass
-        # try:
-        #     self.proc.send_signal(signal.SIGINT)
-        # except ProcessLookupError:
-        #     pass
-        # self.proc.wait()
+        os.system('taskkill /im rtl_fm.exe /F')
 
 class BackgroundDownload(Thread):
     def __init__(self, url, filename):
@@ -489,7 +477,7 @@ class UI(Gtk.Window):
         response = dlg.run()
         licenseKey = dlg.get_license_key()
         dlg.destroy()
-        if len(licenseKey):
+        if response == Gtk.ResponseType.OK and len(licenseKey):
             self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
             self.settingsDialog.writeSettings()
             self.downloadBackground()
@@ -1183,7 +1171,6 @@ class UI(Gtk.Window):
         self.listbox.add(row)
         
     def playpause(self, btn):
-        if( os.system('rtl_fm') < 257 and os.system('play --version') < 257 ):
             if btn.selFrequency != self.playingfreq:
                 self.playRTLSDR(btn.selFrequency)
                 self.playingfreq = btn.selFrequency
@@ -1201,7 +1188,8 @@ class UI(Gtk.Window):
                         Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
                         Gtk.MessageType.ERROR,
                         Gtk.ButtonsType.OK,
-                        'RTLSDR device not connected?')
+                        'RTLSDR device not connected?\nIf it is plugged in but you have never installed the driver,\nor recently reinstalled or updated drivers,\nUse Zadig to reinstall "WinUSB" driver to the RTL2838 device:\n'
+                        +'https://www.nooelec.com/store/qs/')
                     dialogWindow.set_title('Device not found')
                     dialogWindow.show_all()
                     response = dialogWindow.run()
@@ -1214,9 +1202,6 @@ class UI(Gtk.Window):
                 self.playingfreq = None
                 btn.set_image(Gtk.Image(icon_name='media-playback-start',
                         icon_size=self.PLAYSIZE))
-        else:
-            #Prompt to install:
-            os.system('pkexec --user root apt install -y rtl-sdr sox')
 
     def goLinkIRLP(self, btn):
         label = btn.get_label()
@@ -1286,7 +1271,7 @@ class UI(Gtk.Window):
             self.rtllistener.stop()
             sleep(1)
         # -l 450 is higher squelch.
-        cmd = 'rtl_fm -M fm -f '+str(mhz)+'M -s 200k -r 24k -l 50 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
+        cmd = 'rtl_fm.exe -M fm -f '+str(mhz)+'M -s 48k -l 50 | sox.exe -V1 -b 16 -c 1 -e signed-integer -r 48k -t raw - -t waveaudio default'
         print(cmd)
         self.rtllistener = RTLSDRRun( cmd )
         self.rtllistener.start()
