@@ -22,7 +22,11 @@ datas = [
     ('src/signaltower.svg', '.'),
     ('src/signaltowerdown.svg', '.'),
     ('src/SettingsDialog.glade', '.'),
-    ('src/README-WINDOWS.TXT', '.') 
+    ('src/README-WINDOWS.TXT', '.'),
+    ('src/lang', 'lang'),
+    ('src/lib', 'lib'),
+    ('src/sentry_sdk', 'sentry_sdk'),
+    ('src/rtl-sdr-32bit-20260531', 'rtl-sdr-32bit-20260531')
 ]
 
 a = Analysis(['src/repeaterstart.py'],
@@ -53,6 +57,7 @@ exe = EXE(pyz,
           console=False,
           disable_windowed_traceback=False,
           target_arch=None,
+          contents_directory='.',
           codesign_identity=None,
           entitlements_file=None , icon='resources/repeaterSTART.ico')
 coll = COLLECT(exe,
@@ -62,4 +67,5 @@ coll = COLLECT(exe,
                strip=False,
                upx=True,
                upx_exclude=[],
+               contents_directory='.',
                name='repeaterstart')
