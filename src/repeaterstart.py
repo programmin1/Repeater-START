@@ -398,7 +398,7 @@ class UI(Gtk.Window):
         self.paned.pack2(scrolled, resize=True)
         self.GTKListRows = []
         self.playBtns = []
-        #GObject.idle_add(self.updateMessage)
+        GObject.idle_add(self.updateMessage)
         
     def buttonPress(self,listbox, event):
         """
@@ -721,7 +721,7 @@ class UI(Gtk.Window):
     def updateMessage(self):
         toupdatefile = userFile('update.response')
         if os.path.exists(toupdatefile):
-            Gdk.threads_enter()
+            Gdk.threads_enter() #or icon does a funny thing.
             try:
                 updateinfo = json.load(open(toupdatefile))
                 if str(updateinfo['version']) != self.version:
@@ -732,9 +732,8 @@ class UI(Gtk.Window):
                         updateinfo['message'])
                     response = dlg.run()
                     if response == Gtk.ResponseType.YES:
-                        os.system('start '+updateinfo['link'])
+                        webbrowser.open(updateinfo['link'])
                     dlg.destroy()
-                        
             except:
                 print('Error update check')
             Gdk.threads_leave()
