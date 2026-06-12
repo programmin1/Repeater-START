@@ -168,8 +168,7 @@ class UI(Gtk.Window):
         privatetilesapi='https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
 
         self.osm = osmgpsmap.Map(
-            repo_uri=privatetilesapi,
-            image_format='jpg',
+            repo_uri=privatetilesapi
         )
         if os.path.exists(userFile('lastPosition.json')):
             with open(userFile('lastPosition.json')) as lastone:
@@ -180,7 +179,7 @@ class UI(Gtk.Window):
                 )
         #Now map-source required or it gets some mysterious null pointers and render issue:
         self.osm.set_property("map-source", osmgpsmap.MapSource_t.LAST)
-        self.osm.set_property("repo-uri", privatetilesapi)
+        #self.osm.set_property("repo-uri", privatetilesapi)
         
         osd = osmgpsmap.MapOsd(
                         show_dpad=True,
@@ -485,7 +484,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         response = dlg.run()
         licenseKey = dlg.get_license_key()
         dlg.destroy()
-        if len(licenseKey):
+        if response == Gtk.ResponseType.OK and len(licenseKey):
             self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
             self.settingsDialog.writeSettings()
             self.downloadBackground()
@@ -804,25 +803,6 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 
     def on_show_tooltips_toggled(self, btn):
         self.show_tooltips = btn.props.active
-
-    def load_map_clicked(self, button):
-        uri = self.repouri_entry.get_text()
-        format = self.image_format_entry.get_text()
-        if uri and format:
-            if self.osm:
-                #remove old map
-                self.vbox.remove(self.osm)
-            try:
-                self.osm = osmgpsmap.Map(
-                    repo_uri=uri,
-                    image_format=format
-                )
-            except Exception:
-                print( "ERROR:" )
-                self.osm = osm.Map()
-            self.vbox.pack_start(self.osm, True, True, 0)
-            #self.osm.connect('button_release_event', self.map_clicked)
-            self.osm.show()
 
     def print_tiles(self):
         if self.osm.props.tiles_queued != 0:
