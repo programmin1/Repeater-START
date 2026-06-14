@@ -29,6 +29,7 @@ import json
 import gettext
 import locale
 import pathlib
+import webbrowser
 
 localedir = pathlib.Path(__file__).resolve().parent / 'lang'
 espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
@@ -145,7 +146,7 @@ class BackgroundDownloadZip(BackgroundDownload):
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '1.1-beta3'
+        self.version = '1.1.0'
         self.mode = ''
         self.set_default_size(600, 600)
         self.connect('destroy', self.cleanup)
@@ -490,16 +491,16 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.downloadBackground()
     
     def followIRLPlink(self,menuItem):
-        os.system('xdg-open "https://www.irlp.net/status/index.php?nodeid=%s"' % (menuItem.irlp,) )
+        webbrowser.open('https://www.irlp.net/status/index.php?nodeid=%s' % (menuItem.irlp,) )
         
     def followlink(self,menuItem):
-        os.system('xdg-open "https://hearham.com/repeaters/%s?src=%s"' % (menuItem.repeaterID,os.name) )
+        webbrowser.open("https://hearham.com/repeaters/%s?src=%s" % (menuItem.repeaterID,os.name) )
 
     def followcommentlink(self,menuItem):
-        os.system('xdg-open "https://hearham.com/repeaters/%s/comment?src=%s"' % (menuItem.repeaterID,os.name) )
+        webbrowser.open("https://hearham.com/repeaters/%s/comment?src=%s" % (menuItem.repeaterID,os.name) )
 
     def followextralink(self,menuItem):
-        os.system('xdg-open "%s"' % (menuItem.url.replace('"','%22'),) )
+        webbrowser.open(menuItem.url)
         
     def setViews(self):
         if self.mode == 'search':
@@ -693,9 +694,8 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         updateinfo['message'])
                     response = dlg.run()
                     if response == Gtk.ResponseType.YES:
-                        os.system('xdg-open '+updateinfo['link'])
+                        webbrowser.open(updateinfo['link'])
                     dlg.destroy()
-                        
             except:
                 print('Error update check')
             Gdk.threads_leave()
@@ -772,11 +772,11 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         #print('DISPLAYNODES took '+str(time.time()-start))
     
     def credit_mapbox(self, obj, obj2):
-        os.system('xdg-open https://www.mapbox.com/about/maps/')
+        webbrowser.open('https://www.mapbox.com/about/maps/')
     def credit_osm(self, obj, obj2):
-        os.system('xdg-open http://www.openstreetmap.org/about/')
+        webbrowser.open('http://www.openstreetmap.org/about/')
     def improvement_link(self, obj, obj2):
-        os.system('xdg-open https://www.mapbox.com/map-feedback/')
+        webbrowser.open('https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater, minimum, maximum):
         if(float(repeater.freq) >= minimum and
@@ -963,7 +963,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         )
         
     def add_repeater_clicked(self, button):
-        os.system('xdg-open "https://hearham.com/repeaters/add?lat=%s&lon=%s"' % (self.osm.props.latitude, self.osm.props.longitude) )
+        webbrowser.open("https://hearham.com/repeaters/add?lat=%s&lon=%s" % (self.osm.props.latitude, self.osm.props.longitude) )
 
     def on_map_change(self, event):
         if self.renderedLat != self.osm.props.latitude or self.renderedLon != self.osm.props.longitude:
