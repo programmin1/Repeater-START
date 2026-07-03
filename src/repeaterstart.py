@@ -1167,7 +1167,10 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                         icon_size=self.PLAYSIZE))
         else:
             #Prompt to install:
-            os.system('pkexec --user root apt install -y rtl-sdr sox')
+            if shutil.which('rpm') and shutil.which('dnf'): #Fedora/RHL:
+                os.system('pkexec --user root dnf install -y rtl-sdr sox')
+            else: #Ubuntu/debian:
+                os.system('pkexec --user root apt install -y rtl-sdr sox')
 
     def goLinkIRLP(self, btn):
         label = btn.get_label()
