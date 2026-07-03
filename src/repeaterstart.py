@@ -930,8 +930,26 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             __('Please allow geolocation to use this feature.'))
         response = dlg.run()
         dlg.destroy()
-        subprocess.Popen(['gnome-control-center','privacy'])
+        try:
+            subprocess.Popen(['gnome-control-center','privacy'])
+        except:
+            if self.is_geoclue_active() :
+                msg="Gnome-control-center not found but Geoclue is active. Check your desktop environment's location settings."
+            else:
+                msg="Geoclue is not active, not able to detect location from network or GPS."
+            print(msg)
         Gdk.threads_leave()
+
+    def is_geoclue_active(self):
+        try:
+            result = subprocess.run(
+                ['systemctl', 'status', 'geoclue'],
+                capture_output=True,
+                text=True
+            )
+            return 'active (running)' in (result.stdout + result.stderr)
+        except Exception:
+            return False
 
 
     def on_query_tooltip(self, widget, x, y, keyboard_tip, tooltip, data=None):
