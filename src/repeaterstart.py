@@ -95,10 +95,8 @@ from PremiumDialog import PremiumDialog
 from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
-
-#GObject.threads_init()
-#Gdk.threads_init()
-
+#from NetworkStatus import isMobileData
+from SVGLoaderWindow import SVGLoaderWindow
 from threading import Thread
 gi.require_version('OsmGpsMap', '1.0')
 from gi.repository import OsmGpsMap as osmgpsmap
@@ -1157,18 +1155,31 @@ class UI(Gtk.Window):
                       icon_size=self.PLAYSIZE))
         helpbtn.set_tooltip_text(__('Radio Setup Help'))
         helpbtn.connect('clicked', self.helppro)
+        elevationbtn = Gtk.Button()
+        mtnpic = GdkPixbuf.Pixbuf.new_from_file_at_scale('mtns.svg',width=32,height=32,preserve_aspect_ratio=True)
+        elevationbtn.set_image(Gtk.Image.new_from_pixbuf(mtnpic))
+        elevationbtn.lat = repeater.lat
+        elevationbtn.lon = repeater.lon
+        elevationbtn.connect('clicked', self.elevationDisplay)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
         rightbox.pack_start(distlbl, False, True, 10)
         rightbox.pack_start(playbtn, True, True, 0)
         rightbox.pack_start(helpbtn, True, True, 0)
+        rightbox.pack_start(elevationbtn, True, True, 0)
         hbox.pack_start(rightbox, False, True, 0)
         
         #These two arrays should correspond!
         self.GTKListRows.append(row)
         self.playBtns.append(playbtn)
         self.listbox.add(row)
-        
+
+    def elevationDisplay(self, btn):
+        svgurl = 'https://hearham.com/api/topo/v1/svg?lat1=%s&lon1=%s&lat2=%s&lon2=%s' % (btn.lat, btn.lon,  self.osm.props.latitude, self.osm.props.longitude)
+        print(svgurl)
+        window = SVGLoaderWindow(self, svgurl)
+        window.show()
+
     def playpause(self, btn):
             if btn.selFrequency != self.playingfreq:
                 self.playRTLSDR(btn.selFrequency)
