@@ -20,6 +20,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 import sys
 import signal
 from time import sleep
+
 #necessary for Ubuntu/GNOME desktop file icon match:
 sys.argv[0] = 'repeaterSTART' # GTK reads argv[0] to set WM_CLASS
 import os.path
@@ -78,7 +79,7 @@ from CsvRepeaterListing import CsvRepeaterListing
 from MaidenheadLocator import locatorToLatLng, latLongToLocator
 from lib import openlocationcode #Plus code. https://github.com/google/open-location-code
 from NetworkStatus import isMobileData
-
+from SVGLoaderWindow import SVGLoaderWindow
 from threading import Thread
 from gi.repository import OsmGpsMap as osmgpsmap
 from zipfile import ZipFile
@@ -1121,18 +1122,31 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
                       icon_size=self.PLAYSIZE))
         helpbtn.set_tooltip_text(__('Radio Setup Help'))
         helpbtn.connect('clicked', self.helppro)
+        elevationbtn = Gtk.Button()
+        mtnpic = GdkPixbuf.Pixbuf.new_from_file_at_scale('mtns.svg',width=32,height=32,preserve_aspect_ratio=True)
+        elevationbtn.set_image(Gtk.Image.new_from_pixbuf(mtnpic))
+        elevationbtn.lat = repeater.lat
+        elevationbtn.lon = repeater.lon
+        elevationbtn.connect('clicked', self.elevationDisplay)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
         rightbox.pack_start(distlbl, False, True, 10)
         rightbox.pack_start(playbtn, True, True, 0)
         rightbox.pack_start(helpbtn, True, True, 0)
+        rightbox.pack_start(elevationbtn, True, True, 0)
         hbox.pack_start(rightbox, False, True, 0)
         
         #These two arrays should correspond!
         self.GTKListRows.append(row)
         self.playBtns.append(playbtn)
         self.listbox.add(row)
-        
+
+    def elevationDisplay(self, btn):
+        svgurl = 'https://hearham.com/api/topo/v1/svg?lat1=%s&lon1=%s&lat2=%s&lon2=%s' % (btn.lat, btn.lon,  self.osm.props.latitude, self.osm.props.longitude)
+        print(svgurl)
+        window = SVGLoaderWindow(self, svgurl)
+        window.show()
+
     def playpause(self, btn):
         if( os.system('rtl_fm') < 257 and os.system('play --version') < 257 ):
             if btn.selFrequency != self.playingfreq:
