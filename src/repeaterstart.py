@@ -1127,6 +1127,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         elevationbtn.set_image(Gtk.Image.new_from_pixbuf(mtnpic))
         elevationbtn.lat = repeater.lat
         elevationbtn.lon = repeater.lon
+        elevationbtn.call = repeater.callsign
         elevationbtn.connect('clicked', self.elevationDisplay)
         playbtn.connect('clicked', self.playpause)
         rightbox = Gtk.VBox()
@@ -1144,8 +1145,8 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def elevationDisplay(self, btn):
         svgurl = 'https://hearham.com/api/topo/v1/svg?lat1=%s&lon1=%s&lat2=%s&lon2=%s' % (btn.lat, btn.lon,  self.osm.props.latitude, self.osm.props.longitude)
         print(svgurl)
-        window = SVGLoaderWindow(self, svgurl)
-        window.show()
+        window = SVGLoaderWindow(self, svgurl, btn.call)
+        window.show_all()
 
     def playpause(self, btn):
         if( os.system('rtl_fm') < 257 and os.system('play --version') < 257 ):
