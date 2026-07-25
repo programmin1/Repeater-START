@@ -9,9 +9,6 @@ from gi.repository import Gtk, GLib, Rsvg
 class SVGLoaderWindow(Gtk.ApplicationWindow):
     def __init__(self, parent_window: Gtk.ApplicationWindow, svg_url: str, call: str):
         super().__init__()
-        self.svg_url = svg_url
-        self.svg_handle = None  # Rsvg.Handle, set once the SVG has downloaded
-
         self.set_title("Elevation profile to "+call)
         self.set_default_size(600,300)
 
@@ -35,6 +32,16 @@ class SVGLoaderWindow(Gtk.ApplicationWindow):
         loading_box.pack_start(self.status_label, False, False, 0)
 
         self.stack.add_named(loading_box, "loading")
+        self.svg_url = None
+        self.loadsvg(svg_url)
+
+    def loadsvg(self, svg_url):
+        if svg_url == self.svg_url:
+            print('no change svg')
+            return;
+        self.svg_url = svg_url
+        self.svg_handle = None  # Rsvg.Handle, set once the SVG has downloaded
+
 
         # --- Image page: draw the SVG directly instead of going through a
         # rasterized Gtk.Image. Deliberately no set_size_request() here -

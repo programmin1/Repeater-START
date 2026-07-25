@@ -182,10 +182,11 @@ class UI(Gtk.Window):
         if os.path.exists(userFile('lastPosition.json')):
             with open(userFile('lastPosition.json')) as lastone:
                 lastposition = json.loads(lastone.read())
-                self.osm.set_center_and_zoom(lastposition['lat'],
-                    lastposition['lon'],
-                    lastposition['zoom']
-                )
+                if( lastposition['lon'] and lastposition['lat']):
+                    self.osm.set_center_and_zoom(lastposition['lat'],
+                        lastposition['lon'],
+                        lastposition['zoom']
+                    )
         #Now map-source required or it gets some mysterious null pointers and render issue:
         self.osm.set_property("map-source", osmgpsmap.MapSource_t.LAST)
         #self.osm.set_property("repo-uri", privatetilesapi)
@@ -214,6 +215,8 @@ class UI(Gtk.Window):
         self.osm.connect('button_release_event', self.on_button_release)
         self.osm.connect('changed', self.on_map_change)
         self.osm.connect('size-allocate', self.resized_map)
+        self._elevation_windows = {}  # window -> {"track": MapTrack, "btn": btn}
+
 
         #connect keyboard shortcuts
         self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.FULLSCREEN, Gdk.keyval_from_name("F11"))
@@ -1019,7 +1022,7 @@ class UI(Gtk.Window):
     def on_map_change(self, event):
         if self.renderedLat != self.osm.props.latitude or self.renderedLon != self.osm.props.longitude:
             #Center changed.
-            print(self.osm.props.latitude)
+            print('changed to '+str(self.osm.props.latitude) + ','+str(self.osm.props.longitude) )
             self.renderedLat = self.osm.props.latitude
             self.renderedLon = self.osm.props.longitude
 
@@ -1037,6 +1040,16 @@ class UI(Gtk.Window):
             self.refreshListing()
             self.map_info_label.hide()
             print('on_map_change time: %s' % (time.time()  - t))
+            #elevation profiles:
+            for window, entry in self._elevation_windows.items():
+                btn = entry["btn"]
+                old_track = entry["track"]
+                # so swap in a fresh track with the updated endpoint.
+                self.osm.track_remove(old_track)
+                new_track = self._make_track([(btn.lat, btn.lon), (self.osm.props.latitude, self.osm.props.longitude)])
+                self.osm.track_add(new_track)
+                entry["track"] = new_track
+                window.loadsvg(self._svg_url(btn))
     
     def refreshListing(self):
         # cursor lat,lon = self.osm.get_event_location(event).get_degrees()
@@ -1175,11 +1188,50 @@ class UI(Gtk.Window):
         self.playBtns.append(playbtn)
         self.listbox.add(row)
 
+    # ---------- track helpers ----------
+
+    def _make_track(self, points, color_hex="#FF0000", width=4):
+        line = osmgpsmap.MapTrack()
+        for lat, lon in points:
+            line.add_point(osmgpsmap.MapPoint.new_degrees(lat, lon))
+
+        if color_hex.startswith('#'):
+            r = int(color_hex[1:3], 16) / 255.0
+            g = int(color_hex[3:5], 16) / 255.0
+            b = int(color_hex[5:7], 16) / 255.0
+        else:
+            r, g, b = (1.0, 0.0, 0.0)
+
+        rgba = Gdk.RGBA()
+        rgba.red, rgba.green, rgba.blue, rgba.alpha = r, g, b, 1.0
+        line.set_property("color", rgba)
+        line.set_property("line-width", width)
+        return line
+
+    def _svg_url(self, btn):
+        return 'https://hearham.com/api/topo/v1/svg?lat1=%s&lon1=%s&lat2=%s&lon2=%s' % (
+            btn.lat, btn.lon, self.osm.props.latitude, self.osm.props.longitude
+        )
+
+    # ---------- elevation windows ----------
+
     def elevationDisplay(self, btn):
-        svgurl = 'https://hearham.com/api/topo/v1/svg?lat1=%s&lon1=%s&lat2=%s&lon2=%s' % (btn.lat, btn.lon,  self.osm.props.latitude, self.osm.props.longitude)
-        print(svgurl)
-        window = SVGLoaderWindow(self, svgurl, btn.call)
+        track = self._make_track([(btn.lat, btn.lon),
+                                   (self.osm.props.latitude, self.osm.props.longitude)])
+        self.osm.track_add(track)
+
+        window = SVGLoaderWindow(self, self._svg_url(btn), btn.call)
         window.show_all()
+
+        self._elevation_windows[window] = {"track": track, "btn": btn}
+        window.connect('destroy', self._on_elevation_window_destroy, window)
+
+        return window
+
+    def _on_elevation_window_destroy(self, widget, window):
+        entry = self._elevation_windows.pop(window, None)
+        if entry is not None:
+            self.osm.track_remove(entry["track"])
 
     def playpause(self, btn):
             if btn.selFrequency != self.playingfreq:
