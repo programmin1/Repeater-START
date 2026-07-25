@@ -2,6 +2,7 @@
 import csv
 import os
 from gi.repository import GdkPixbuf
+import cairo
 
 from Repeater import Repeater
 from RepeaterStartCommon import userFile

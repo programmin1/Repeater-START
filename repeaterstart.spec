@@ -21,6 +21,7 @@ datas = [
     ('src/mapbox.svg', '.'),
     ('src/signaltower.svg', '.'),
     ('src/signaltowerdown.svg', '.'),
+    ('src/mtns.svg', '.'),
     ('src/SettingsDialog.glade', '.'),
     ('src/README-WINDOWS.TXT', '.'),
     ('src/lang', 'lang'),
