@@ -1,0 +1,62 @@
+repeater-start (1.2.0) stable; urgency=medium
+  * Elevation profile
+  * Fixes to the search box to not freeze up the whole window.
+ -- Luke <luke@hearham.live>  Sat, 03 Oct 2026 17:50:00 -0800
+
+repeater-start (1.1.99) beta; urgency=medium
+ * Elevation profile
+ -- Luke <luke@hearham.live>  Fri, 24 Jul 2026 17:30:00 -0800
+
+repeater-start (1.1.0) stable; urgency=medium
+ * Cleanup and minor fixes for premium license cancel, 
+ * Error dialog for RTLSDR not connected.
+ -- Luke <luke@hearham.live>  Sat, 13 Jun 2026 22:50:00 -0800 
+
+repeater-start (1.0.9999) beta; urgency=medium
+ * Minor fixes for dialogs.
+ * Fix for the RTLSDR play button and installation if command not available.
+ -- Luke <luke@hearham.live>  Sat, 16 May 2026 23:45:00 -0800
+
+repeater-start (1.0.999) beta; urgency=medium
+ * Fixed icon later Ubuntu/GNOME.
+ * Clicking tower icon shows information.
+ -- Luke <luke@hearham.live>  Sat, 9 May 2026 11:59:00 -0800
+
+repeater-start (1.0.99) beta; urgency=medium
+ * Add search for callsign.
+ * More clear premium dialog.
+ * Fixes for Raspberry Pi and other Linux, and Sentry error reporting.
+ -- Luke <luke@hearham.live>  Sat, 2 May 2026 08:30:00 -0800
+
+repeater-start (1.0.3) stable; urgency=medium
+ * Disabled-repeater alert and external link fix.
+ * Fix offset plus or minus as applicable.
+ * Fixes for newer Linux, libsoup and webkit issue by using a separate process.
+ -- Luke <luke@hearham.live>  Mon, 1 Sep 2025 21:30:00 -0800
+
+repeater-start (1.0.1) stable; urgency=medium
+ * Faster initial start with thousands of repeaters.
+ * Unavailable custom repeater icon bug where it showed the same icon, should be red now.
+ * Minor fixes.
+ 
+ -- Luke <luke@hearham.live>  Sat, 18 Jan 2025 23:30:00 -0800
+
+repeater-start (1.0) stable; urgency=medium
+ * Premium license key enables step by step instructions.
+ 
+ -- Luke <luke@hearham.live>  Mon, 16 Sep 2024 21:20:00 -0800
+ 
+
+repeater-start (0.99-beta) unstable; urgency=medium
+ * Add data/mobile check.
+ * Add ability to add different repositories of repeaters.
+ 
+ -- Luke <luke@hearham.live>  Sat, 23 Dec 2023 23:30:00 -0800
+
+repeater-start (0.9.1) unstable; urgency=medium
+ * Fix Openstreetmap Nominatim search
+ 
+ -- Luke <luke@hearham.live>  Fri, 24 Aug 2023 00:06:00 -0000
+
+# Older entries have been removed from this changelog.
+# To read the complete changelog use `apt changelog repeater-start`.

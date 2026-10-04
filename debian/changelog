@@ -1,103 +1,108 @@
+repeater-start (1.2.0) stable; urgency=medium
+  * Elevation profile
+  * Fixes to the search box to not freeze up the whole window.
+ -- Luke <luke@hearham.live>  Sat, 03 Oct 2026 17:50:00 -0800
+
 repeater-start (1.1.99) beta; urgency=medium
  * Elevation profile
- -- Luke <luke@hearham.live>  Fri, Jul 24 2026 17:30:00 -0800 
+ -- Luke <luke@hearham.live>  Fri, 24 Jul 2026 17:30:00 -0800
 
 repeater-start (1.1.0) stable; urgency=medium
  * Cleanup and minor fixes for premium license cancel, 
  * Error dialog for RTLSDR not connected.
- -- Luke <luke@hearham.live>  Sat, Jun 13 2026 22:50:00 -0800 
+ -- Luke <luke@hearham.live>  Sat, 13 Jun 2026 22:50:00 -0800 
 
 repeater-start (1.0.9999) beta; urgency=medium
  * Minor fixes for dialogs.
  * Fix for the RTLSDR play button and installation if command not available.
- -- Luke <luke@hearham.live>  Sat, May 16 2026 23:45:00 -0800
+ -- Luke <luke@hearham.live>  Sat, 16 May 2026 23:45:00 -0800
 
 repeater-start (1.0.999) beta; urgency=medium
  * Fixed icon later Ubuntu/GNOME.
  * Clicking tower icon shows information.
- -- Luke <luke@hearham.live>  Sat, May 9 2026 11:59:00 -0800
+ -- Luke <luke@hearham.live>  Sat, 9 May 2026 11:59:00 -0800
 
 repeater-start (1.0.99) beta; urgency=medium
  * Add search for callsign.
  * More clear premium dialog.
  * Fixes for Raspberry Pi and other Linux, and Sentry error reporting.
- -- Luke <luke@hearham.live>  Sat, May 2 2026 08:30:00 -0800
+ -- Luke <luke@hearham.live>  Sat, 2 May 2026 08:30:00 -0800
 
 repeater-start (1.0.3) stable; urgency=medium
  * Disabled-repeater alert and external link fix.
  * Fix offset plus or minus as applicable.
  * Fixes for newer Linux, libsoup and webkit issue by using a separate process.
- -- Luke <luke@hearham.live>  Mon, Sep 1 2025 21:30:00 -0800
+ -- Luke <luke@hearham.live>  Mon, 1 Sep 2025 21:30:00 -0800
 
 repeater-start (1.0.1) stable; urgency=medium
  * Faster initial start with thousands of repeaters.
  * Unavailable custom repeater icon bug where it showed the same icon, should be red now.
  * Minor fixes.
  
- -- Luke <luke@hearham.live>  Sat, Jan 18 2025 23:30:00 -0800
+ -- Luke <luke@hearham.live>  Sat, 18 Jan 2025 23:30:00 -0800
 
 repeater-start (1.0) stable; urgency=medium
  * Premium license key enables step by step instructions.
  
- -- Luke <luke@hearham.live>  Mon, Sep 16 2024 21:20:00 -0800
+ -- Luke <luke@hearham.live>  Mon, 16 Sep 2024 21:20:00 -0800
  
 
 repeater-start (0.99-beta) unstable; urgency=medium
  * Add data/mobile check.
  * Add ability to add different repositories of repeaters.
  
- -- Luke <luke@hearham.live>  Sat, Dec 23 2023 23:30:00 -0800
+ -- Luke <luke@hearham.live>  Sat, 23 Dec 2023 23:30:00 -0800
 
 repeater-start (0.9.1) unstable; urgency=medium
  * Fix Openstreetmap Nominatim search
  
- -- Luke <luke@hearham.live>  Fri, Aug 2023 00:06:00 -0000
+ -- Luke <luke@hearham.live>  Fri, 24 Aug 2023 00:06:00 -0000
 
 repeater-start (0.8) unstable; urgency=medium
  * Optimize loading of repeaters, introduce a right click menu.
  
- -- Luke <luke@hearham.live>  Fri, May 15 2022 20:51:00 -0800
+ -- Luke <luke@hearham.live>  Fri, 15 May 2022 20:51:00 -0800
  
  
 repeater-start (0.9) unstable; urgency=medium
  * Introduces resizable map/listing area.
  * Adds ability to search for Global Plus Code and center map, even offline.
  
- -- Luke <luke@hearham.live>  Fri, Nov 18 2022 00:16:00 -0800
+ -- Luke <luke@hearham.live>  Fri, 18 Nov 2022 00:16:00 -0800
 
 repeater-start (0.8) unstable; urgency=medium
  * Optimize loading of repeaters, introduce a right click menu.
  
- -- Luke <luke@hearham.live>  Fri, May 15 2022 20:51:00 -0800
+ -- Luke <luke@hearham.live>  Fri, 15 May 2022 20:51:00 -0800
 
 
 repeater-start (0.7.2) unstable; urgency=medium
  * Fix a null grey maps issue on some systems and icon placement when installed on Librem.
  
- -- Luke <luke@hearham.live>  Fri, Mar 4 2022 22:26:00 -0800
+ -- Luke <luke@hearham.live>  Fri, 4 Mar 2022 22:26:00 -0800
 
 repeater-start (0.7.1) unstable; urgency=medium
  * Fix very slow startup and reinit of all the icons.
  
- -- Luke <luke@hearham.live>  Sun, Feb 21 2021 21:22:00 -0800
+ -- Luke <luke@hearham.live>  Sun, 21 Feb 2021 21:22:00 -0800
 
 repeater-start (0.7) unstable; urgency=medium
  * Search for frequency/internet node number.
  * Fix display of red repeater icon for OFFLINE IRLP.
  
- -- Luke <luke@hearham.live>  Sun, Jan 31 2021 12:00:00 -0800
+ -- Luke <luke@hearham.live>  Sun, 31 Jan 2021 12:00:00 -0800
 
 repeater-start (0.6) unstable; urgency=medium
  * Search for or view Maidenhead-grid-square.
  * New Nominatim.openstreetmap.org api is used.
  
- -- Luke <luke@hearham.live>  Sun, Dec 27 2020 22:30:00 -0800
+ -- Luke <luke@hearham.live>  Sun, 27 Dec 2020 22:30:00 -0800
 
 repeater-start (0.5) unstable; urgency=medium
  * Inoperable repeaters are now shown in red.
  * Settings dialog for frequency filter and length units.
  
- -- Luke <luke@hearham.live>  Mon, Nov 23 2020 23:00:00 -0800
+ -- Luke <luke@hearham.live>  Mon, 23 Nov 2020 23:00:00 -0800
 
 repeater-start (0.4) unstable; urgency=medium
  * Auto save and load the map position and zoom when reopening the app.

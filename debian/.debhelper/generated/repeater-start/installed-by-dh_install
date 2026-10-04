@@ -7,6 +7,7 @@
 ./src/locateme.svg
 ./src/MaidenheadLocator.py
 ./src/mapbox.svg
+./src/mtns.svg
 ./src/NetworkStatus.py
 ./src/PremiumDialog.py
 ./src/profile.pstats
@@ -18,6 +19,7 @@
 ./src/SettingsDialog.py
 ./src/signaltower.svg
 ./src/signaltowerdown.svg
+./src/SVGLoaderWindow.py
 ./resources/repeaterstart.desktop
 ./resources/repeaterSTART
 ./resources/repeaterSTART.svg

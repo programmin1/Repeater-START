@@ -206,7 +206,7 @@ class SearchThread(Thread):
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '1.2-beta'
+        self.version = '1.2.0'
         self.mode = ''
         self.set_default_size(600, 600)
         self.connect('destroy', self.cleanup)
