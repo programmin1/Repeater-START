@@ -212,7 +212,7 @@ class SearchThread(Thread):
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '1.2-beta'
+        self.version = '1.2.0'
         self.mode = ''
         self.set_default_size(600, 600)
         self.connect('destroy', self.cleanup)
@@ -1051,7 +1051,11 @@ class UI(Gtk.Window):
             if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
                 text += ' '+__('(Repeaters filtered in settings)')
             self.latlon_entry.set_text(
+                text % (
+                    latLongToLocator(self.renderedLat, self.renderedLon),
+                    round(self.osm.props.latitude, 4),
                     round(self.osm.props.longitude, 4)
+                )
             )
             self.refreshListing()
             self.map_info_label.hide()
