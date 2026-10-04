@@ -182,10 +182,10 @@ class SearchThread(Thread):
             )
             f = urllib.request.urlopen(req)
             objs = json.loads(f.read().decode('utf-8'))
-            if len(objs) == 0:
+            if len(objs) == 0 and srctext.find(' ')==-1:
                 try:
                     req = urllib.request.Request(
-                        'https://hamcall.dev/'+srctext+'.json', 
+                        'https://hamcall.dev/'+(urllib.parse.quote(srctext))+'.json', 
                         data=None,
                         headers={
                             'User-Agent':'Repeater-START/'+self.main.version
@@ -1013,7 +1013,7 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
     def on_map_change(self, event):
         if self.renderedLat != self.osm.props.latitude or self.renderedLon != self.osm.props.longitude:
             #Center changed.
-            print('changed to '+str(self.osm.props.latitude) + ','+str(self.osm.props.longitude) )
+            #print('changed to '+str(self.osm.props.latitude) + ','+str(self.osm.props.longitude) )
             self.renderedLat = self.osm.props.latitude
             self.renderedLon = self.osm.props.longitude
 
