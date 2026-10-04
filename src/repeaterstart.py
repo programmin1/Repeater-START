@@ -150,6 +150,65 @@ class BackgroundDownloadZip(BackgroundDownload):
         else:
             print('Unable to update premium RepeaterSTART data.')
 
+class SearchThread(Thread):
+    def __init__(self, query, main):
+        #Search and network that must be in a thread or freezes up the window!
+        Thread.__init__(self)
+        self.query = query
+        self.main = main
+
+    def run(self):
+        srctext = self.query
+        #What3Words address has 2 . in it:
+        if re.match( r".*\..*\..*", srctext):
+            req = urllib.request.Request(
+                'https://hearham.com/api/whatthreewords/v1?words=%s' % (urllib.parse.quote(srctext),), 
+                data=None,
+                headers={
+                    'User-Agent': 'Repeater-START/'+self.main.version
+                }
+            )
+            f = urllib.request.urlopen(req)
+            objs = json.loads(f.read().decode('utf-8'))
+            if not objs:
+                GLib.idle_add(self.main.latlon_entry.set_text, 'Invalid what3words.com address.')
+                #self.latlon_entry.set_text('Invalid what3words.com address.')
+            else:
+                GLib.idle_add(self.main.osm.set_center, objs['coordinates']['lat'], objs['coordinates']['lng'])
+                #self.osm.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
+                #self.latlon_entry.set_text('Map Center: %s %s : %s' % ( latLongToLocator(objs['coordinates']['lat'], objs['coordinates']['lng']), objs['map'], objs['nearestPlace'] ) )
+        else:
+            # Use new query format https://github.com/osm-search/Nominatim/issues/2121 
+            req = urllib.request.Request(
+                'https://nominatim.openstreetmap.org/search?q=%s&format=json&limit=50' % (urllib.parse.quote(srctext),), 
+                data=None,
+                headers={
+                    'User-Agent': 'Repeater-START/'+self.main.version
+                }
+            )
+            f = urllib.request.urlopen(req)
+            objs = json.loads(f.read().decode('utf-8'))
+            if len(objs) == 0 and srctext.find(' ')==-1:
+                try:
+                    req = urllib.request.Request(
+                        'https://hamcall.dev/'+(urllib.parse.quote(srctext))+'.json', 
+                        data=None,
+                        headers={
+                            'User-Agent':'Repeater-START/'+self.main.version
+                        }
+                    )
+                    f=urllib.request.urlopen(req)#, context=ssl_context)
+                    calllookup = json.loads(f.read().decode('utf-8'))
+                    print('callsinglookup================')
+                    print(calllookup)
+                    GLib.idle_add(self.main.osm.set_center, float(calllookup['location']['lat']), float(calllookup['location']['lon']))
+                    #self.osm.set_center(float(calllookup['location']['lat']), float(calllookup['location']['lon']))
+                except (urllib.error.URLError,KeyError) as e:
+                    print(e)
+                    GLib.idle_add(self.main.processSearchResults, [])
+            else:
+                GLib.idle_add(self.main.processSearchResults, objs)
+
 class UI(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
@@ -176,8 +235,7 @@ class UI(Gtk.Window):
         privatetilesapi='https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
 
         self.osm = osmgpsmap.Map(
-            repo_uri=privatetilesapi,
-            image_format='jpg',
+            repo_uri=privatetilesapi
         )
         if os.path.exists(userFile('lastPosition.json')):
             with open(userFile('lastPosition.json')) as lastone:
@@ -399,7 +457,7 @@ class UI(Gtk.Window):
         self.paned.pack2(scrolled, resize=True)
         self.GTKListRows = []
         self.playBtns = []
-        GObject.idle_add(self.updateMessage)
+        GLib.idle_add(self.updateMessage)
         
     def buttonPress(self,listbox, event):
         """
@@ -565,7 +623,6 @@ class UI(Gtk.Window):
             pluscode = openlocationcode.decode(srctext)
             self.osm.set_center(pluscode.latitudeCenter, pluscode.longitudeCenter)
         except:
-            try:
                 gridsquare = locatorToLatLng(srctext)
                 if gridsquare:
                     self.osm.set_center(gridsquare['lat'], gridsquare['lng'])
@@ -621,72 +678,34 @@ class UI(Gtk.Window):
                         self.listbox.add(row)
                         self.searchRows.append(row)
                     self.listbox.show_all()
-                    
-                #What3Words address has 2 . in it:
-                elif re.match( r".*\..*\..*", srctext):
-                    req = urllib.request.Request(
-                        'https://hearham.com/api/whatthreewords/v1?words=%s' % (urllib.parse.quote(srctext),), 
-                        data=None,
-                        headers={
-                            'User-Agent': 'Repeater-START/'+self.version
-                        }
-                    )
-                    f = urllib.request.urlopen(req)
-                    objs = json.loads(f.read().decode('utf-8'))
-                    if not objs:
-                        self.latlon_entry.set_text('Invalid what3words.com address.')
-                    else:
-                        self.osm.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
-                        self.latlon_entry.set_text('Map Center: %s %s : %s' % ( latLongToLocator(objs['coordinates']['lat'], objs['coordinates']['lng']), objs['map'], objs['nearestPlace'] ) )
                 else:
-                    # Use new query format https://github.com/osm-search/Nominatim/issues/2121 
-                    req = urllib.request.Request(
-                        'https://nominatim.openstreetmap.org/search?q=%s&format=json&limit=50' % (urllib.parse.quote(srctext),), 
-                        data=None,
-                        headers={
-                            'User-Agent': 'Repeater-START/'+self.version
-                        }
-                    )
-                    f = urllib.request.urlopen(req)
-                    objs = json.loads(f.read().decode('utf-8'))
-                    self.clearRows()
-                    if len(objs) == 0:
-                        try:
-                            req = urllib.request.Request(
-                                'https://hamcall.dev/'+srctext+'.json', 
-                                data=None,
-                                headers={
-                                    'User-Agent':'Repeater-START/'+self.version
-                                }
-                            )
-                            f=urllib.request.urlopen(req)#, context=ssl_context)
-                            calllookup = json.loads(f.read().decode('utf-8'))
-                            self.osm.set_center(float(calllookup['location']['lat']), float(calllookup['location']['lon']))
-                        except (urllib.error.URLError,KeyError) as e:
-                            row = Gtk.ListBoxRow()
-                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                            mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
-                            hbox.pack_start(mainlbl,True,True,0)
-                            row.add(hbox)
-                            self.listbox.add(row)
-                            self.searchRows.append(row)
+                    thread = SearchThread(srctext, self)
+                    thread.start()
 
-                    for item in objs: #Search above
-                        row = Gtk.ListBoxRow()
-                        row.longitude = float(item['lon'])
-                        row.latitude = float(item['lat'])
-                        # ^ for double click activate
-                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                        mainlbl = Gtk.Label(item['display_name'],xalign=0)
-                        hbox.pack_start(mainlbl,True,True,0)
-                        row.add(hbox)
-                        self.listbox.add(row)
-                        self.searchRows.append(row)
-                        
-                    self.listbox.show_all()
-            except urllib.error.URLError:
-                self.latlon_entry.set_text('Network error')
-                
+    def processSearchResults(self, results_data):
+        """This function runs safely in the GTK main thread."""
+        self.clearRows()
+        if len(results_data) == 0:
+            row = Gtk.ListBoxRow()
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
+            hbox.pack_start(mainlbl,True,True,0)
+            row.add(hbox)
+            self.listbox.add(row)
+            self.searchRows.append(row)
+        else:
+            for item in results_data:
+                row = Gtk.ListBoxRow()
+                row.longitude = float(item['lon'])
+                row.latitude = float(item['lat'])
+                hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                mainlbl = Gtk.Label(item['display_name'],xalign=0)
+                hbox.pack_start(mainlbl,True,True,0)
+                row.add(hbox)
+                self.listbox.add(row)
+                self.searchRows.append(row)
+        self.listbox.show_all()
+        
     def clearRows(self):
         for r in self.GTKListRows:
             r.destroy()
@@ -811,11 +830,11 @@ class UI(Gtk.Window):
         #print('DISPLAYNODES took '+str(time.time()-start))
     
     def credit_mapbox(self, obj, obj2):
-        os.system('start https://www.mapbox.com/about/maps/')
+        webbrowser.open('https://www.mapbox.com/about/maps/')
     def credit_osm(self, obj, obj2):
-        os.system('start http://www.openstreetmap.org/about/')
+        webbrowser.open('http://www.openstreetmap.org/about/')
     def improvement_link(self, obj, obj2):
-        os.system('start https://www.mapbox.com/map-feedback/')
+        webbrowser.open('https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater, minimum, maximum):
         if(float(repeater.freq) >= minimum and
@@ -842,25 +861,6 @@ class UI(Gtk.Window):
 
     def on_show_tooltips_toggled(self, btn):
         self.show_tooltips = btn.props.active
-
-    # def load_map_clicked(self, button):
-    #     uri = self.repouri_entry.get_text()
-    #     format = self.image_format_entry.get_text()
-    #     if uri and format:
-    #         if self.osm:
-    #             #remove old map
-    #             self.vbox.remove(self.osm)
-    #         try:
-    #             self.osm = osmgpsmap.Map(
-    #                 repo_uri=uri,
-    #                 image_format=format
-    #             )
-    #         except Exception:
-    #             print( "ERROR:" )
-    #             self.osm = osm.Map()
-    #         self.vbox.pack_start(self.osm, True, True, 0)
-    #         #self.osm.connect('button_release_event', self.map_clicked)
-    #         self.osm.show()
 
     def print_tiles(self):
         if self.osm.props.tiles_queued != 0:
@@ -950,7 +950,10 @@ class UI(Gtk.Window):
         dlg.destroy()
         
     def helpAbout_clicked(self,button):
-        changed = datetime.datetime.fromtimestamp(os.path.getmtime(userFile('repeaters.json'))).strftime('%c')
+        changed = 'never'
+        rptfile = userFile('repeaters.json')
+        if os.path.exists(rptfile):
+            changed = datetime.datetime.fromtimestamp(os.path.getmtime(userFile('repeaters.json'))).strftime('%c')
         dlg = Gtk.MessageDialog(self, 
             0,Gtk.MessageType.INFO,
             Gtk.ButtonsType.OK,
@@ -984,8 +987,26 @@ class UI(Gtk.Window):
             __('Please allow geolocation to use this feature.'))
         response = dlg.run()
         dlg.destroy()
-        subprocess.Popen(['gnome-control-center','privacy'])
+        try:
+            subprocess.Popen(['gnome-control-center','privacy'])
+        except:
+            if self.is_geoclue_active() :
+                msg="Gnome-control-center not found but Geoclue is active. Check your desktop environment's location settings."
+            else:
+                msg="Geoclue is not active, not able to detect location from network or GPS."
+            print(msg)
         Gdk.threads_leave()
+
+    def is_geoclue_active(self):
+        try:
+            result = subprocess.run(
+                ['systemctl', 'status', 'geoclue'],
+                capture_output=True,
+                text=True
+            )
+            return 'active (running)' in (result.stdout + result.stderr)
+        except Exception:
+            return False
 
 
     def on_query_tooltip(self, widget, x, y, keyboard_tip, tooltip, data=None):
@@ -1017,12 +1038,11 @@ class UI(Gtk.Window):
         )
         
     def add_repeater_clicked(self, button):
-        os.system('start https://hearham.com/repeaters/add?lat=%s&lon=%s' % (self.osm.props.latitude, self.osm.props.longitude) )
+        webbrowser.open("https://hearham.com/repeaters/add?lat=%s&lon=%s" % (self.osm.props.latitude, self.osm.props.longitude) )
 
     def on_map_change(self, event):
         if self.renderedLat != self.osm.props.latitude or self.renderedLon != self.osm.props.longitude:
             #Center changed.
-            print('changed to '+str(self.osm.props.latitude) + ','+str(self.osm.props.longitude) )
             self.renderedLat = self.osm.props.latitude
             self.renderedLon = self.osm.props.longitude
 
@@ -1031,11 +1051,7 @@ class UI(Gtk.Window):
             if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
                 text += ' '+__('(Repeaters filtered in settings)')
             self.latlon_entry.set_text(
-                text % (
-                    latLongToLocator(self.renderedLat, self.renderedLon),
-                    round(self.osm.props.latitude, 4),
                     round(self.osm.props.longitude, 4)
-                )
             )
             self.refreshListing()
             self.map_info_label.hide()
@@ -1219,7 +1235,6 @@ class UI(Gtk.Window):
         track = self._make_track([(btn.lat, btn.lon),
                                    (self.osm.props.latitude, self.osm.props.longitude)])
         self.osm.track_add(track)
-
         window = SVGLoaderWindow(self, self._svg_url(btn), btn.call)
         window.show_all()
 
