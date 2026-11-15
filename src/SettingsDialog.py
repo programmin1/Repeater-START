@@ -1,278 +1,221 @@
-import gi
-import os
-import urllib
-import locale
-import pathlib
-import locale
-
-localedir = pathlib.Path(__file__).resolve().parent / 'lang'
-locale.bindtextdomain('repeaterstart', localedir)
-locale.textdomain('repeaterstart')
-
-gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
-from gi.repository import Gdk
+"""GTK4 settings, preserving the existing settings.ini format."""
 import configparser
+import math
+import os
+import tempfile
+import threading
+import urllib.request
+from pathlib import Path
+
+import gi
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gtk, GLib
 from CsvRepeaterListing import CsvRepeaterListing
 from RepeaterStartCommon import userFile
-from urllib.error import HTTPError
-import pathlib
+from GtkSupport import margins, message
+
 
 class SettingsDialog:
     def __init__(self, parentWin):
         self.parentWin = parentWin
+        self.dialog = None
         self.config = configparser.ConfigParser()
-        if os.path.exists(userFile('settings.ini')):
-            self.config.read(userFile('settings.ini'))
-        else: #defaults:
-            self.config['ViewOptions'] = {
-             'unitsLength': 'mi',
-             'filterMin' : '',
-             'filterMax' : ''
-            }
-        if not 'DownloadOptions' in self.config:
-            self.config['DownloadOptions'] = {
-                'mobile' : False
-            }
-        if not 'Diagnostics' in self.config:
-            self.config['Diagnostics'] = {} #SendReport no default
-        #Just ham radio constants:
-        self.UHFMIN = '420'
-        self.UHFMAX = '450'
-        self.VHFMIN = '144'
-        self.VHFMAX = '148'
-            
+        self.config.read(userFile('settings.ini'))
+        defaults = {
+            'ViewOptions': {'unitsLength': 'mi', 'filterMin': '', 'filterMax': ''},
+            'DownloadOptions': {'mobile': 'False'}, 'Diagnostics': {},
+            'Repeaters': {'Hearham Amateur Radio Repeaters': 'https://hearham.com/api/repeaters/v1'},
+        }
+        for section, values in defaults.items():
+            if section not in self.config:
+                self.config[section] = values
+            elif section != 'Repeaters':
+                for key, value in values.items():
+                    if key not in self.config[section]:
+                        self.config[section][key] = value
+
     def writeSettings(self):
-        # Save the config to the file:
-        if hasattr(self, 'builder'):
-            units = 'mi'
-            if self.builder.get_object('distUnitsRadioKM').get_active():
-                units = 'km'
-            self.config['ViewOptions'] = {
-             'unitsLength': units,
-             'filterMin' : self.builder.get_object('lblMinFreq').get_text(),
-             'filterMax' : self.builder.get_object('lblMaxFreq').get_text()
-            }
-            self.config['DownloadOptions'] = {
-              'mobile' : self.builder.get_object('allowMobile').get_active()
-            }
-        with open(userFile('settings.ini'),'w') as outfile:
+        # Never replace DownloadOptions: doing so erased licenseKEY previously.
+        with open(userFile('settings.ini'), 'w') as outfile:
             self.config.write(outfile)
-    
+
     def getAllowMobile(self):
-        #note the STRING value of config values:
-        return self.config['DownloadOptions']['mobile'].lower() != 'false'
-    
+        return self.config.getboolean('DownloadOptions', 'mobile', fallback=False)
+
     def getMinFilter(self):
-        value = self.config['ViewOptions']['filterMin']
         try:
-            return float(value)
+            return float(self.config['ViewOptions']['filterMin'])
         except ValueError:
             return -1
 
     def getMaxFilter(self):
-        value = self.config['ViewOptions']['filterMax']
         try:
-            return float(value)
+            return float(self.config['ViewOptions']['filterMax'])
         except ValueError:
-            return 9e999
+            return math.inf
 
     def getUnit(self):
         return self.config['ViewOptions']['unitsLength']
-        
+
     def getShown(self):
-        if 'Repeaters' in self.config:
-            print(self.config['Repeaters'])
-            try:
-                for name in self.config['Repeaters']:
-                    row = Gtk.ListBoxRow()
-                    row.add(Gtk.Label(name))
-                    row.url = self.config['Repeaters'][name]
-                    self.repolist.add(row)
-                self.repolist.show_all()
-            except AttributeError:
-                print('Repeater row not found?')
-        else:
-            #Default case
-            self.config['Repeaters'] = {
-                'Hearham Amateur Radio Repeaters': "https://hearham.com/api/repeaters/v1"
-            }
         return self.config['Repeaters']
 
     def show(self):
-        #Create GtkDialog
-        self.builder = Gtk.Builder()
-        domain = 'repeaterstart'
-        localepath= os.path.dirname(__file__)+'/lang'
-        locale.bindtextdomain(domain , localepath )
-        #locale.textdomain(domain)
-        #locale.setlocale(locale.LC_ALL,'')
-        self.builder.set_translation_domain(domain )
-        locale.textdomain('repeaterstart')
-        self.builder.add_from_file('SettingsDialog.glade')
-        self.builder.connect_signals(self)
-        self.dialog = self.builder.get_object('SettingsDialog')
-        #self.dialog.set_parent(parentWin)
-        self.dialog.set_transient_for(self.parentWin) #Over the main window.
-        self.dialog.set_modal(True)
-        #self.dialog.set_redraw_on_allocate(True)
-        self.dialog.set_title('Settings')
-        
-        self.repolist = self.builder.get_object('repeaterRepos')
-        self.getShown()
-        
-        self.dialog.show_all()
-        #Load the config to the form
-        options = self.config['ViewOptions']
-        if options['unitsLength'] == 'km':
-            self.builder.get_object('distUnitsRadioKM').set_active(True)
-        if self.getMinFilter() > 0:
-            self.builder.get_object('filterFreqCustom').set_active(True)
-            # ^ if nofilter is selected, the default, then they are cleared with NoFilterSet()
-            self.builder.get_object('lblMinFreq').set_text(str(options['filterMin']))
-        if self.getMaxFilter() < 9e999:
-            self.builder.get_object('filterFreqCustom').set_active(True)
-            self.builder.get_object('lblMaxFreq').set_text(str(options['filterMax']))
-        if self.getMinFilter() == float(self.VHFMIN) and self.getMaxFilter() == float(self.VHFMAX):
-            self.builder.get_object('freqFilterVHF').set_active(True)
-        if self.getMinFilter() == float(self.UHFMIN) and self.getMaxFilter() == float(self.UHFMAX):
-            self.builder.get_object('freqFilterUHF').set_active(True)
-        self.builder.get_object('allowMobile').set_active(self.getAllowMobile())
-
-    # User actions on the form:
-    def NoFilterSet(self, *args):
-        self.builder.get_object('lblMinFreq').set_text('')
-        self.builder.get_object('lblMaxFreq').set_text('')
-
-    def VHFSet(self, *args):
-        self.builder.get_object('lblMinFreq').set_text(self.VHFMIN)
-        self.builder.get_object('lblMaxFreq').set_text(self.VHFMAX)
-        
-    def UHFSet(self, *args):
-        self.builder.get_object('lblMinFreq').set_text(self.UHFMIN)
-        self.builder.get_object('lblMaxFreq').set_text(self.UHFMAX)
-    
-    def doDialog(self, title, inputarea=''):
-        dialogWindow = Gtk.MessageDialog(self.dialog,
-              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-              Gtk.MessageType.QUESTION,
-              Gtk.ButtonsType.OK_CANCEL,
-              title)
-
-        dialogWindow.set_title(title)
-        dialogBox = dialogWindow.get_content_area()
-        userEntry = Gtk.Entry()
-        userEntry.set_size_request(140,12);
-        userEntry.set_text(inputarea)
-        dialogBox.pack_end(userEntry, False, False, 0)
-        dialogWindow.show_all()
-        response = dialogWindow.run()
-        text = userEntry.get_text()
-        dialogWindow.destroy()
-        return text
-        
-    def doMsg(self, title, msg):
-        dialogWindow = Gtk.MessageDialog(self.dialog,
-              Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-              Gtk.MessageType.WARNING,
-              Gtk.ButtonsType.OK,
-              title)
-        dialogWindow.set_title(title)
-        dialogBox = dialogWindow.get_content_area()
-        userEntry = Gtk.Label()
-        userEntry.set_size_request(140,12);
-        userEntry.set_text(msg)
-        dialogBox.pack_end(userEntry, False, False, 0)
-        dialogWindow.show_all()
-        print('shown')
-        response = dialogWindow.run()
-        dialogWindow.destroy()
-        return
-    
-    def addRpt(self, *args):
-        url = self.doDialog('Add repeaters by URL of listing:')
-        tmpfile = userFile('repeater-temp-file.csv')
-        if url and url.find('.csv') > -1 :
-            try:
-                #verify and get the name:
-                #TODO should be in a background thread somehow
-                urllib.request.urlretrieve(url, tmpfile)
-                csv = CsvRepeaterListing(tmpfile)
-                if csv.name:
-                    row = Gtk.ListBoxRow()
-                    row.add(Gtk.Label(csv.name))
-                    row.url = url
-                    self.repolist.add(row)
-                    self.repolist.show_all()
-                    self.config['Repeaters'][csv.name] = url
-                else:
-                    self.doMsg('Error:','Invalid entry? Must be a .csv file available on a server.')
-            except HTTPError:
-                self.doMsg('Error:','HTTP error- Must be a .csv file available on a server.')
-            os.remove(tmpfile)
-        elif url and url.find("hearham.com/api/repeaters/v1") > -1:
-            #Re-add default:
-            row = Gtk.ListBoxRow()
-            row.add(Gtk.Label('Hearham Amateur Radio Repeaters'))
-            row.url = "https://hearham.com/api/repeaters/v1"
-            self.repolist.add(row)
-            self.repolist.show_all()
-            self.config['Repeaters']['Hearham Amateur Radio Repeaters'] = "https://hearham.com/api/repeaters/v1"
-        elif len(url):
-            self.doMsg('Error:','You must enter a full url of a .csv file.')
+        if self.dialog:
+            self.dialog.present()
             return
-        
+        self.dialog = Gtk.Window(title='Settings', transient_for=self.parentWin,
+                                 modal=True, destroy_with_parent=True,
+                                 default_width=440, default_height=470)
+        self.dialog.connect('close-request', self.onClosed)
+        box = margins(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), 12)
+        self.dialog.set_child(box)
+        units = Gtk.Box(spacing=12)
+        units.append(Gtk.Label(label='Distance units'))
+        self.miles = Gtk.CheckButton(label='Miles')
+        self.km = Gtk.CheckButton(label='Kilometers')
+        self.km.set_group(self.miles)
+        (self.km if self.getUnit() == 'km' else self.miles).set_active(True)
+        units.append(self.miles)
+        units.append(self.km)
+        box.append(units)
+        presets = Gtk.Box(spacing=6)
+        presets.append(Gtk.Label(label='Frequency filter'))
+        self.minimum = Gtk.Entry(text=self.config['ViewOptions']['filterMin'], placeholder_text='Min MHz', hexpand=True)
+        self.maximum = Gtk.Entry(text=self.config['ViewOptions']['filterMax'], placeholder_text='Max MHz', hexpand=True)
+        for name, low, high in [('All', '', ''), ('VHF', '144', '148'), ('UHF', '420', '450')]:
+            button = Gtk.Button(label=name)
+            button.connect('clicked', lambda _, a=low, b=high: (self.minimum.set_text(a), self.maximum.set_text(b)))
+            presets.append(button)
+        box.append(presets)
+        limits = Gtk.Box(spacing=6)
+        limits.append(self.minimum)
+        limits.append(self.maximum)
+        box.append(limits)
+        self.mobile = Gtk.CheckButton(label='Download repeater updates on mobile data', active=self.getAllowMobile())
+        box.append(self.mobile)
+        box.append(Gtk.Label(label='Repeater sources', xalign=0))
+        self.repolist = Gtk.ListBox()
+        scrolled = Gtk.ScrolledWindow(child=self.repolist, vexpand=True, min_content_height=120)
+        box.append(scrolled)
+        self._fill_sources()
+        actions = Gtk.Box(spacing=6)
+        for label, callback in [('Add', self.addRpt), ('Remove', self.rmRpt), ('Properties', self.propertyRpt)]:
+            button = Gtk.Button(label=label)
+            button.connect('clicked', callback)
+            actions.append(button)
+        box.append(actions)
+        close = Gtk.Button(label='Save and close')
+        close.connect('clicked', self.onClosed)
+        box.append(close)
+        self.dialog.present()
+
+    def _fill_sources(self):
+        while (row := self.repolist.get_first_child()) is not None:
+            self.repolist.remove(row)
+        for name, url in self.getShown().items():
+            row = Gtk.ListBoxRow(child=margins(Gtk.Label(label=name, xalign=0), 6))
+            row.name, row.url = name, url
+            self.repolist.append(row)
+
+    def _edit_source(self, row=None):
+        dialog = Gtk.Dialog(title='Repeater source URL', transient_for=self.dialog,
+                            modal=True, destroy_with_parent=True)
+        dialog.add_button('Cancel', Gtk.ResponseType.CANCEL)
+        dialog.add_button('Save', Gtk.ResponseType.OK)
+        entry = Gtk.Entry(text=row.url if row else '', placeholder_text='https://…/repeaters.csv', hexpand=True)
+        dialog.get_content_area().append(margins(entry, 12))
+        entry.connect('activate', lambda _: dialog.response(Gtk.ResponseType.OK))
+        def response(dialog, result):
+            url = entry.get_text().strip()
+            old_name = row.name if row else None
+            dialog.destroy()
+            if result != Gtk.ResponseType.OK or not url:
+                return
+            if not url.startswith(('https://', 'http://')):
+                message(self.dialog, 'Enter an HTTP or HTTPS URL for a CSV repeater list.')
+                return
+            if 'hearham.com/api/repeaters/v1' in url:
+                self._source_loaded('Hearham Amateur Radio Repeaters', url, old_name)
+                return
+            def download():
+                filename = None
+                try:
+                    with urllib.request.urlopen(url, timeout=20) as response:
+                        data = response.read()
+                    with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp:
+                        temp.write(data)
+                        filename = temp.name
+                    listing = CsvRepeaterListing(filename)
+                    if not listing.name:
+                        raise ValueError('The CSV must have a Name header.')
+                    # Keep a first copy available immediately, also when offline.
+                    Path(userFile('rpt-' + listing.name + '.csv')).write_bytes(data)
+                    GLib.idle_add(self._source_loaded, listing.name, url, old_name)
+                except (OSError, ValueError, IndexError, AttributeError) as error:
+                    GLib.idle_add(self._source_failed, str(error))
+                finally:
+                    if filename:
+                        os.unlink(filename)
+            threading.Thread(target=download, daemon=True).start()
+        dialog.connect('response', response)
+        dialog.present()
+
+    def _source_loaded(self, name, url, old_name):
+        if old_name and old_name != name:
+            self.config['Repeaters'].pop(old_name, None)
+        self.config['Repeaters'][name] = url
+        self.writeSettings()
+        if self.dialog:
+            self._fill_sources()
+        if not self.parentWin._closing:
+            self.parentWin.displayNodes()
+        return False
+
+    def _source_failed(self, error):
+        if self.dialog:
+            message(self.dialog, 'Cannot load repeater list: ' + error)
+        return False
+
+    def addRpt(self, *args):
+        self._edit_source()
+
     def rmRpt(self, *args):
         row = self.repolist.get_selected_row()
         if row:
-            for item in self.config['Repeaters']:
-                if self.config['Repeaters'][item] == row.url:
-                    del self.config['Repeaters'][item]
-                    #TODO clean up files
-            self.repolist.remove( row )
+            del self.config['Repeaters'][row.name]
+            self._fill_sources()
         else:
-            self.msgNoneSelected()
-        
-    def propertyRpt(self, *args):
-        if self.repolist.get_selected_row():
-            url = self.doDialog('Re/set current selected url:',self.repolist.get_selected_row().url)
-            tmpfile = userFile('repeater-temp-file.csv')
-            if url and url.find('.csv') > -1 :
-                #verify and get the name:
-                try:
-                    #TODO should be in a background thread somehow
-                    urllib.request.urlretrieve(url, tmpfile)
-                    csv = CsvRepeaterListing(tmpfile)
-                    if csv.name:
-                        self.config['Repeaters'][csv.name] = url
-                        self.repolist.get_selected_row().url = url
-                        self.repolist.show_all()
-                    else:
-                        self.doMsg('Error:','Invalid entry? Must be a .csv file available on a server.')
-                    os.remove(tmpfile)
-                except HTTPError:
-                    self.doMsg('Error:','HTTP error- Must be a .csv file available on a server.')
-        else:
-            self.msgNoneSelected()
-    
-    def msgNoneSelected(self):
-        dialogWindow = Gtk.MessageDialog(self.dialog,
-            Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-            Gtk.MessageType.ERROR,
-            Gtk.ButtonsType.OK,
-            'Select an entry first.')
-        dialogWindow.set_title('Choose a source')
-        dialogWindow.show_all()
-        response = dialogWindow.run()
-        dialogWindow.destroy()
-            
+            message(self.dialog, 'Select an entry first.')
 
-    def onDestroy(self, *args):
-        pass
-        
-    # Note this is also set as the close button's clicked signal.
+    def propertyRpt(self, *args):
+        row = self.repolist.get_selected_row()
+        if row:
+            self._edit_source(row)
+        else:
+            message(self.dialog, 'Select an entry first.')
+
     def onClosed(self, *args):
+        low, high = self.minimum.get_text().strip(), self.maximum.get_text().strip()
+        try:
+            values = [float(value) for value in (low, high) if value]
+            if any(not math.isfinite(value) or value < 0 for value in values):
+                raise ValueError
+            if low and high and float(low) > float(high):
+                raise ValueError
+        except ValueError:
+            message(self.dialog, 'Enter valid frequency limits, with minimum no greater than maximum.')
+            return True
+        self.config['ViewOptions'].update({'unitsLength': 'km' if self.km.get_active() else 'mi',
+                                          'filterMin': low, 'filterMax': high})
+        self.config['DownloadOptions']['mobile'] = str(self.mobile.get_active())
         self.writeSettings()
+        self.close()
         self.parentWin.displayNodes()
-        self.parentWin.refreshListing()
-        self.dialog.destroy()
+        self.parentWin.downloadBackground()
+        return True
+
+    def close(self):
+        if self.dialog:
+            dialog, self.dialog = self.dialog, None
+            dialog.destroy()

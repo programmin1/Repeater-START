@@ -5,15 +5,22 @@ from gi.repository import GdkPixbuf
 
 from Repeater import Repeater
 from RepeaterStartCommon import userFile
-import urllib
+import urllib.request
+from pathlib import Path
 
 class CsvRepeaterListing():
     """ Hold repeater listing and list of repeaters """
-    def __init__(self, filename):
+    def __init__(self, filename, download_icon=True):
+        self.name = ""
+        self.icon = ""
+        self.repeaters = []
         start = True
         data = False
         with open(filename) as csvfile:
             for row in csv.reader(csvfile, delimiter=',', quotechar='"'):
+                if not row:
+                    start = False
+                    continue
                 if start:
                     if row[0].lower() == 'name':
                         self.name = row[1]
@@ -55,7 +62,7 @@ class CsvRepeaterListing():
                             setattr(r, 'status', active)
                             
                     self.repeaters.append(r)
-        if not os.path.exists(self.iconFile()):
+        if download_icon and self.icon and not os.path.exists(self.iconFile()):
             #try:
             urllib.request.urlretrieve(self.icon, self.iconFile())
             #except:
@@ -66,7 +73,8 @@ class CsvRepeaterListing():
     
     def getIcon(self):
         """ The downloaded icon to render for this particular tower type """
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(self.iconFile(),width=21,height=21,preserve_aspect_ratio=True)
+        filename = self.iconFile() if os.path.exists(self.iconFile()) else str(Path(__file__).parent / 'signaltower.svg')
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(filename,width=21,height=21,preserve_aspect_ratio=True)
         return pixbuf
                     
     def __str__(self):

@@ -33,10 +33,10 @@ import pathlib
 import webbrowser
 
 localedir = pathlib.Path(__file__).resolve().parent / 'lang'
-espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
+espanol = gettext.translation('repeaterstart', localedir=localedir, languages=['es'], fallback=True)
 locale.textdomain('repeaterstart')
 if os.environ.get('LANG', '')[:2] == 'es':
-    lang = gettext.translation('repeaterstart', localedir=localedir, languages=['es'])
+    lang = gettext.translation('repeaterstart', localedir=localedir, languages=['es'], fallback=True)
 else:
     lang = gettext.NullTranslations()
 lang.install()
@@ -47,9 +47,9 @@ gettext.bindtextdomain('repeaterstart', localedir_str)
 locale.bindtextdomain('repeaterstart', localedir_str) 
 
 import gi
-gi.require_version("Gtk", "3.0")
+gi.require_version("Gtk", "4.0")
 gi.require_version('Geoclue', '2.0')
-gi.require_version('OsmGpsMap', '1.0')
+gi.require_version('Shumate', '1.0')
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GLib
@@ -60,7 +60,7 @@ import time
 import random
 import re
 import datetime
-from gi.repository import cairo
+from gi.repository import Gio
 
 from gi.repository import Geoclue
 import math
@@ -81,68 +81,89 @@ from lib import openlocationcode #Plus code. https://github.com/google/open-loca
 from NetworkStatus import isMobileData
 from SVGLoaderWindow import SVGLoaderWindow
 from threading import Thread
-from gi.repository import OsmGpsMap as osmgpsmap
-from zipfile import ZipFile
+from RepeaterMap import RepeaterMap
+from GtkSupport import asset, margins, message, install_css
+from zipfile import ZipFile, BadZipFile
 
-assert osmgpsmap._version == "1.0"
 
-class RTLSDRRun(Thread):
-    def __init__(self, cmd):
-        Thread.__init__(self)
-        self.cmd = cmd
-        
-    def run(self):
-        #TODO test commands more
-        #cmd = 'rtl_fm -M fm -f '+self.freq+'M -l 202 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
-        self.proc = subprocess.Popen(self.cmd, shell=True, start_new_session=True)
-    
+
+class RTLSDRRun:
+    """Own only this app's radio/audio processes; never block GTK or killall."""
+    def __init__(self, mhz):
+        frequency = float(mhz)
+        if not math.isfinite(frequency) or frequency <= 0:
+            raise ValueError('Select a repeater with a valid receive frequency.')
+        self.radio = subprocess.Popen(
+            ['rtl_fm', '-M', 'fm', '-f', f'{frequency}M', '-s', '200k',
+             '-r', '24k', '-l', '50'], stdout=subprocess.PIPE)
+        try:
+            self.audio = subprocess.Popen(
+                ['play', '-r', '24k', '-t', 'raw', '-e', 's', '-b', '16',
+                 '-c', '1', '-V1', '-'], stdin=self.radio.stdout)
+        except OSError:
+            self.radio.terminate()
+            self.radio.wait()
+            raise
+        finally:
+            self.radio.stdout.close()
+
+    def exited(self):
+        return self.radio.poll() is not None or self.audio.poll() is not None
+
     def stop(self):
-        print('STOPPING===============')
-        os.system('killall rtl_fm')
-        #Not sure why this all doesn't work... 
-        # One at a time or this does not work.
-        # try:
-        #     # Kill the entire process group
-        #     os.kill(os.getpgid(self.proc.pid), signal.SIGINT)
-        # except ProcessLookupError:
-        #     pass
-        # try:
-        #     self.proc.send_signal(signal.SIGINT)
-        # except ProcessLookupError:
-        #     pass
-        # self.proc.wait()
+        processes = (self.radio, self.audio)
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+        def reap():
+            for process in processes:
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+        Thread(target=reap, daemon=True).start()
+
 
 class BackgroundDownload(Thread):
     def __init__(self, url, filename):
-        #Thread init, as this is a thread:
-        Thread.__init__(self)
-        self.url = url
-        self.filename = filename
-        self.finished = False
-        self.success = False
+        super().__init__(daemon=True)
+        self.url, self.filename = url, filename
+        self.finished = self.success = False
+
     def run(self):
+        import tempfile
+        tempname = None
         try:
-            tmpfile = '/tmp/output'+str(int(time.time()))+str(random.random())
-            urllib.request.urlretrieve(self.url, tmpfile)
-            shutil.move( tmpfile, self.filename )
-            self.finished = True
+            with urllib.request.urlopen(self.url, timeout=30) as response:
+                with tempfile.NamedTemporaryFile(dir=os.path.dirname(self.filename), delete=False) as temp:
+                    tempname = temp.name
+                    shutil.copyfileobj(response, temp)
+            os.replace(tempname, self.filename)
+            tempname = None
+            self.after_download()
             self.success = True
-        except urllib.error.URLError:
-            print("offline? Could not get "+self.url)
-            self.finished = True
-        except urllib.error.HTTPError:
-            print("Failed to fetch.")
+        except (OSError, ValueError, BadZipFile) as error:
+            print('Download failed:', self.filename, error)
+        finally:
+            if tempname and os.path.exists(tempname):
+                os.unlink(tempname)
             self.finished = True
 
+    def after_download(self):
+        pass
+
+
 class BackgroundDownloadZip(BackgroundDownload):
-    def run(self):
-        super().run()
-        if os.path.exists(self.filename):
-            with ZipFile(self.filename, 'r') as prozip:
-                prozip.extractall(path=userFile('.hidden'))
-            os.remove(self.filename)
-        else:
-            print('Unable to update premium RepeaterSTART data.')
+    def after_download(self):
+        target = pathlib.Path(userFile('.hidden')).resolve()
+        with ZipFile(self.filename) as archive:
+            for member in archive.infolist():
+                if not (target / member.filename).resolve().is_relative_to(target):
+                    raise ValueError('Archive contains a path outside its destination')
+            archive.extractall(target)
+        os.unlink(self.filename)
+
 
 class SearchThread(Thread):
     def __init__(self, query, main):
@@ -152,6 +173,12 @@ class SearchThread(Thread):
         self.main = main
 
     def run(self):
+        try:
+            self.search()
+        except (OSError, ValueError, KeyError) as error:
+            GLib.idle_add(self.main.search_failed, str(error))
+
+    def search(self):
         srctext = self.query
         #What3Words address has 2 . in it:
         if re.match( r".*\..*\..*", srctext):
@@ -162,14 +189,14 @@ class SearchThread(Thread):
                     'User-Agent': 'Repeater-START/'+self.main.version
                 }
             )
-            f = urllib.request.urlopen(req)
+            f = urllib.request.urlopen(req, timeout=20)
             objs = json.loads(f.read().decode('utf-8'))
             if not objs:
                 GLib.idle_add(self.main.latlon_entry.set_text, 'Invalid what3words.com address.')
                 #self.latlon_entry.set_text('Invalid what3words.com address.')
             else:
-                GLib.idle_add(self.main.osm.set_center, objs['coordinates']['lat'], objs['coordinates']['lng'])
-                #self.osm.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
+                GLib.idle_add(self.main.map.set_center, objs['coordinates']['lat'], objs['coordinates']['lng'])
+                #self.map.set_center(objs['coordinates']['lat'], objs['coordinates']['lng'])
                 #self.latlon_entry.set_text('Map Center: %s %s : %s' % ( latLongToLocator(objs['coordinates']['lat'], objs['coordinates']['lng']), objs['map'], objs['nearestPlace'] ) )
         else:
             # Use new query format https://github.com/osm-search/Nominatim/issues/2121 
@@ -180,378 +207,220 @@ class SearchThread(Thread):
                     'User-Agent': 'Repeater-START/'+self.main.version
                 }
             )
-            f = urllib.request.urlopen(req)
+            f = urllib.request.urlopen(req, timeout=20)
             objs = json.loads(f.read().decode('utf-8'))
-            if len(objs) == 0 and srctext.find(' ')==-1:
+            if len(objs) == 0:
                 try:
                     req = urllib.request.Request(
-                        'https://hamcall.dev/'+(urllib.parse.quote(srctext))+'.json', 
+                        'https://hamcall.dev/'+srctext+'.json', 
                         data=None,
                         headers={
                             'User-Agent':'Repeater-START/'+self.main.version
                         }
                     )
-                    f=urllib.request.urlopen(req)#, context=ssl_context)
+                    f=urllib.request.urlopen(req, timeout=20)#, context=ssl_context)
                     calllookup = json.loads(f.read().decode('utf-8'))
                     print('callsinglookup================')
                     print(calllookup)
-                    GLib.idle_add(self.main.osm.set_center, float(calllookup['location']['lat']), float(calllookup['location']['lon']))
-                    #self.osm.set_center(float(calllookup['location']['lat']), float(calllookup['location']['lon']))
+                    GLib.idle_add(self.main.map.set_center, float(calllookup['location']['lat']), float(calllookup['location']['lon']))
+                    #self.map.set_center(float(calllookup['location']['lat']), float(calllookup['location']['lon']))
                 except (urllib.error.URLError,KeyError) as e:
                     print(e)
                     GLib.idle_add(self.main.processSearchResults, [])
             else:
                 GLib.idle_add(self.main.processSearchResults, objs)
 
-class UI(Gtk.Window):
-    def __init__(self):
-        Gtk.Window.__init__(self, type=Gtk.WindowType.TOPLEVEL)
-        self.version = '1.2.0'
-        self.mode = ''
-        self.set_default_size(600, 600)
-        self.connect('destroy', self.cleanup)
-        self.set_title('RepeaterSTART GPS Mapper')
-        self.vbox = Gtk.VBox(False, 0)
-        self.add(self.vbox)
-        self.paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
-        self.vbox.pack_start(self.paned, True, True, 0);
+MAPBOX_URL = 'https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
 
-        self.unit = 'mi' #or km
-        self.renderedLat = None
-        self.renderedLon = None
-        
+class UI(Gtk.ApplicationWindow):
+    def __init__(self, application, *, start_background=True):
+        super().__init__(application=application)
+        self.version = '2.0-beta'
+        self.mode = ''
+        self._closing = False
+        self._map_change_id = 0
+        self._timers = []
+        self._downloads = []
+        self._elevation_windows = {}
+        self._context_popover = None
         self.rtllistener = None
         self.playingfreq = None
-        self.PLAYSIZE = Gtk.IconSize.BUTTON
+        self.renderedLat = self.renderedLon = None
+        self.allrepeaters = []
+        self.GTKListRows, self.searchRows, self.playBtns = [], [], []
+        self.set_title('RepeaterSTART GPS Mapper')
+        self.set_default_size(700, 700)
+        self.set_icon_name('repeaterSTART')
+        self.connect('close-request', self.cleanup)
+        install_css("""
+            .repeater-marker { padding: 0; min-width: 20px; min-height: 20px;
+                background: transparent; border: none; box-shadow: none; }
+            .repeater-title { font-size: 1.2em; font-weight: bold; }
+            .map-crosshair { font-size: 24px; color: #303030; }
+        """)
         self.settingsDialog = SettingsDialog(self)
-        
-        self.mainScreen = Gdk.Screen.get_default()
-        privatetilesapi='https://api.mapbox.com/styles/v1/programmin/ck7jtie300p7e1iqi1ow2yvi3/tiles/256/#Z/#X/#Y?access_token=pk.eyJ1IjoicHJvZ3JhbW1pbiIsImEiOiJjazdpaXVpMTEwbHJ1M2VwYXRoZmU3bmw4In0.3UpUBsTCOL5zvvJ1xVdJdg'
-
-        self.osm = osmgpsmap.Map(
-            repo_uri=privatetilesapi
-        )
-        if os.path.exists(userFile('lastPosition.json')):
-            with open(userFile('lastPosition.json')) as lastone:
-                lastposition = json.loads(lastone.read())
-                if( lastposition['lon'] and lastposition['lat']):
-                    self.osm.set_center_and_zoom(lastposition['lat'],
-                        lastposition['lon'],
-                        lastposition['zoom']
-                    )
-        #Now map-source required or it gets some mysterious null pointers and render issue:
-        self.osm.set_property("map-source", osmgpsmap.MapSource_t.LAST)
-        #self.osm.set_property("repo-uri", privatetilesapi)
-        
-        osd = osmgpsmap.MapOsd(
-                        show_dpad=True,
-                        show_zoom=True,
-                        show_crosshair=True)
-        
-        icon_app_path = '/usr/share/icons/hicolor/scalable/apps/repeaterSTART.svg'
-        if os.path.exists(icon_app_path):
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
-            surface=Gdk.cairo_surface_create_from_pixbuf(pixbuf, 0, None)
-            self.set_icon(pixbuf)
-
-        self.towerDownPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltowerdown.svg',width=20,height=20,preserve_aspect_ratio=True)
-        self.towerPic = GdkPixbuf.Pixbuf.new_from_file_at_scale('signaltower.svg',width=20,height=20,preserve_aspect_ratio=True)
-        
-        self.osm.layer_add(osd)
-        
-        self.settingsDialog.getShown() #in case not initialized for:
-        self.displayNodes()
-
-        self.last_image = None
-
-        self.osm.connect('button_press_event', self.on_button_press)
-        self.osm.connect('button_release_event', self.on_button_release)
-        self.osm.connect('changed', self.on_map_change)
-        self.osm.connect('size-allocate', self.resized_map)
-        self._elevation_windows = {}  # window -> {"track": MapTrack, "btn": btn}
-
-
-        #connect keyboard shortcuts
-        self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.FULLSCREEN, Gdk.keyval_from_name("F11"))
-        self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.UP, Gdk.keyval_from_name("Up"))
-        self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.DOWN, Gdk.keyval_from_name("Down"))
-        self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.LEFT, Gdk.keyval_from_name("Left"))
-        self.osm.set_keyboard_shortcut(osmgpsmap.MapKey_t.RIGHT, Gdk.keyval_from_name("Right"))
-
-        #connect to tooltip
-        self.osm.props.has_tooltip = True
-        self.osm.connect("query-tooltip", self.on_query_tooltip)
-
-        self.latlon_entry = Gtk.Entry()
-
-        home_button = Gtk.Button()
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale('locateme.svg',width=21,height=21,preserve_aspect_ratio=True)
-        GoImg = Gtk.Image.new_from_pixbuf(pixbuf)
-        home_button.set_image(GoImg)
-        home_button.set_tooltip_text(__('Find my location'))
-        search_button = Gtk.Button()
-        search_button.set_image(Gtk.Image(icon_name='edit-find',
-                      icon_size=Gtk.IconSize.LARGE_TOOLBAR))
-        search_button.connect('clicked', self.searchToggle_clicked)
-        self.search_text = Gtk.Entry()
-        self.search_text.connect('activate',self.search_call)
-        
-        self.help_button = Gtk.Button()
-        self.help_button.set_image(Gtk.Image(icon_name='help-browser',
-                      icon_size=Gtk.IconSize.LARGE_TOOLBAR))
-        self.help_button.connect('clicked', self.help_clicked)
-        self.help_about_button = Gtk.Button()
-        self.help_about_button.set_image(Gtk.Image(icon_name='help-about',
-                      icon_size=Gtk.IconSize.LARGE_TOOLBAR))
-        self.help_about_button.connect('clicked', self.helpAbout_clicked)
-        
-        self.pref_button = Gtk.Button()
-        self.pref_button.set_image(Gtk.Image(icon_name="preferences-system",
-                       icon_size=Gtk.IconSize.LARGE_TOOLBAR))
-        self.pref_button.connect('clicked', self.pref_clicked)
-                       
-        
-        home_button.connect('clicked', self.home_clicked)
-
-        self.back_button = Gtk.Button(label=__('Back'))
-        self.back_button.set_image(Gtk.Image.new_from_icon_name('go-previous', Gtk.IconSize.BUTTON))
-        self.back_button.connect('clicked', self.back_clicked)
-        
-        self.cache_button = Gtk.Button(__('Cache'))
-        self.cache_button.connect('clicked', self.cache_clicked)
-        if self.mainScreen.get_width() < 800:
-            #Just room for icon on Librem/phone.
-            self.add_button = Gtk.Button()
-            self.add_button.set_image(Gtk.Image(icon_name="list-add",
-                       icon_size=Gtk.IconSize.LARGE_TOOLBAR))
-        else:
-            self.add_button = Gtk.Button(__('Add Repeater'))
-        self.add_button.connect('clicked', self.add_repeater_clicked)
-        
-        overlay = Gtk.Overlay()
-        overlay.set_size_request(15,15)
-        overlay.add(self.osm)
-        top_container = Gtk.VBox()
-        leftright_container = Gtk.HBox()
-        mapboxlogo = Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale('mapbox.svg',width=80,height=25,preserve_aspect_ratio=True))
-        leftright_container.pack_start(mapboxlogo, False, False, 0)
-        leftright_container.pack_end(self.linkLabel(' Improve this map', self.improvement_link), False, False, 0)
-        leftright_container.pack_end(self.linkLabel(' (c) openstreetmap ', self.credit_osm), False, False, 0)
-        leftright_container.pack_end(self.linkLabel(' (c) mapbox ', self.credit_mapbox), False, False, 0)
-        if not 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
-            pro_container = Gtk.HBox()
-            pro_inner = Gtk.VBox()
-            pro_inner.override_background_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(1.0, 1.0, 0.8, 1.0))
-            pro = Gtk.Label(__(" Go premium! "), xalign=1)
-            pro.modify_font(Pango.font_description_from_string("Ubuntu Bold 12"))
-            pro.set_has_window(True)
-            pro.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
-            pro.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.9, 0.0, 0.0, 1.0))
-            pro.connect("button-press-event", self.gopremium)
-            pro_inner.pack_end(pro, False, False, 0)
-            pro_container.pack_end(pro_inner, False, False, 0)
-            top_container.pack_start(pro_container, False, False, 0)
-        top_container.pack_end(leftright_container, False, False, 0)
-        #self.vbox.pack_start(overlay, True, True, 0)
-        self.paned.pack1(overlay, resize=True)
-        overlay.add_overlay(top_container)
-        overlay.set_overlay_pass_through(top_container,True)
-        if not 'SendReport' in self.settingsDialog.config['Diagnostics']:
-            dlg = Gtk.MessageDialog(self, 
-                0,Gtk.MessageType.INFO,
-                Gtk.ButtonsType.YES_NO,
-                'Do you want to send exception reports for Repeater-START?\nChoose yes to improve reliability and notify administrators of any errors!')
-            response = dlg.run()
-            if response == Gtk.ResponseType.YES:
-                self.settingsDialog.config['Diagnostics'] = {
-                    'SendReport' : True
-                }
-            else:
-                self.settingsDialog.config['Diagnostics'] = {
-                    'SendReport' : False
-                }
-            self.settingsDialog.writeSettings()
-            dlg.destroy()
-        if self.settingsDialog.config['Diagnostics']['SendReport'] and 'False' != self.settingsDialog.config['Diagnostics']['SendReport']:
-            self.initSentry()
-        #popup with repeater info when clicked on map -
-        self.map_info_label = Gtk.Label()
-        self.map_info_label.set_line_wrap(True)
-        self.map_info_label.set_no_show_all(True)
-        self.map_info_label.set_markup("")
-
-        # Store click position so get-child-position can use it
-        self._info_label_x = 0
-        self._info_label_y = 0
-        ctx = self.map_info_label.get_style_context()
-        css = b"""
-        label {
-            background-color: rgba(0,0,0,0.65);
-            color: white;
-            padding: 6px 10px;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-        """
-        provider = Gtk.CssProvider()
-        provider.load_from_data(css)
-        ctx.add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        overlay.add_overlay(self.map_info_label)
-        # This signal fires whenever GTK needs to know where to place the overlay child
-        overlay.connect("get-child-position", self.on_get_label_position)
-        hbox = Gtk.HBox(False, 0)
-        hbox.pack_start(home_button, False, True, 0)
-        hbox.pack_start(search_button, False, True, 0)
-        hbox.pack_start(self.search_text, False, True, 0)
-        hbox.pack_start(self.back_button, False, True, 0)
-        hbox.pack_start(self.cache_button, False, True, 0)
-        hbox.pack_start(self.add_button, False, True, 0)
-        hbox.pack_start(self.pref_button, False, True, 0)
-        hbox.pack_start(self.help_button, False, True, 0)
-        hbox.pack_start(self.help_about_button, False, True, 0)
-
-        #Adding image in the render code causes infinite loop.
-        icon_app_path = '/usr/share/icons/hicolor/scalable/apps/repeaterSTART.svg'
-        if os.path.exists(icon_app_path):
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_app_path)
-            self.set_icon(pixbuf)
-            
-        #add ability to test custom map URIs
-        #ex = Gtk.Expander(label="<b>Display Options</b>")
-        #ex.props.use_markup = True
-        vb = Gtk.VBox()
-        self.repouri_entry = Gtk.Entry()
-        self.image_format_entry = Gtk.Entry()
-        self.image_format_entry.set_text(self.osm.props.image_format)
-
-        
-        lbl = Gtk.Label(
-"""
-Enter an repository URL to fetch map tiles from in the box below. Special metacharacters may be included in this url
-
-<i>Metacharacters:</i>
-\t#X\tMax X location
-\t#Y\tMax Y location
-\t#Z\tMap zoom (0 = min zoom, fully zoomed out)
-\t#S\tInverse zoom (max-zoom - #Z)
-\t#Q\tQuadtree encoded tile (qrts)
-\t#W\tQuadtree encoded tile (1234)
-\t#U\tEncoding not implemeted
-\t#R\tRandom integer, 0-4""")
-        lbl.props.xalign = 0
-        lbl.props.use_markup = True
-        lbl.props.wrap = True
-
-        #ex.add(vb)
-        self.show_tooltips = False
-        #self.vbox.pack_end(ex, False, True, 0)
-        self.vbox.pack_end(self.latlon_entry, False, True, 0)
-        self.vbox.pack_end(hbox, False, True, 0)
-
-        GLib.timeout_add(500, self.print_tiles)
-        GLib.timeout_add(1000, self.downloadBackground)
-        self.bgdl = None
-
+        self.settingsDialog.getShown()
+        self.map = RepeaterMap(repo_uri=MAPBOX_URL)
+        self.map.set_center_and_zoom(0, 0, 3)
+        try:
+            with open(userFile('lastPosition.json')) as infile:
+                position = json.load(infile)
+            lat, lon, zoom = (float(position[k]) for k in ('lat', 'lon', 'zoom'))
+            if all(math.isfinite(v) for v in (lat, lon, zoom)) and -90 <= lat <= 90 and -180 <= lon <= 180:
+                self.map.set_center_and_zoom(lat, lon, zoom)
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+        self.lastLat = self.map.viewport.props.latitude
+        self.lastLon = self.map.viewport.props.longitude
+        self.towerPic = asset('signaltower.svg')
+        self.towerDownPic = asset('signaltowerdown.svg')
+        self.vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_child(self.vbox)
+        self.paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        self.paned.set_position(380)
+        self.vbox.append(self.paned)
+        overlay = Gtk.Overlay(child=self.map)
+        self.paned.set_start_child(overlay)
+        crosshair = Gtk.Label(label='+', halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        crosshair.add_css_class('map-crosshair')
+        crosshair.set_can_target(False)
+        overlay.add_overlay(crosshair)
+        logo = Gtk.Image.new_from_file(asset('mapbox.svg'))
+        logo.set_pixel_size(80)
+        logo.set_halign(Gtk.Align.START)
+        logo.set_valign(Gtk.Align.END)
+        logo.set_can_target(False)
+        margins(logo, 6)
+        overlay.add_overlay(logo)
+        feedback = Gtk.LinkButton(uri='https://www.mapbox.com/map-feedback/', label='Improve this map')
+        feedback.set_halign(Gtk.Align.START)
+        feedback.set_valign(Gtk.Align.START)
+        overlay.add_overlay(feedback)
+        if 'licenseKEY' not in self.settingsDialog.config['DownloadOptions']:
+            premium = Gtk.Button(label=__('Go premium!'), halign=Gtk.Align.END, valign=Gtk.Align.START)
+            premium.connect('clicked', self.gopremium)
+            overlay.add_overlay(premium)
         self.listbox = Gtk.ListBox()
         self.listbox.set_activate_on_single_click(False)
         self.listbox.connect('row-activated', self.selrow)
-        self.listbox.connect("button_press_event", self.buttonPress)
-        
-        self.searchlistbox = Gtk.ListBox()
-        self.searchlistbox.set_activate_on_single_click(False)
-        self.searchlistbox.connect('row-activated', self.selsearchrow)
-        self.searchRows = []
+        gesture = Gtk.GestureClick(button=3)
+        gesture.connect('pressed', self.buttonPress)
+        self.listbox.add_controller(gesture)
+        scrolled = Gtk.ScrolledWindow(child=self.listbox, vexpand=True)
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.paned.set_end_child(scrolled)
+        toolbar = Gtk.Box(spacing=3)
+        def button(icon, tooltip, callback):
+            result = Gtk.Button(icon_name=icon, tooltip_text=tooltip)
+            result.connect('clicked', callback)
+            toolbar.append(result)
+            return result
+        button('find-location-symbolic', __('Find my location'), self.home_clicked)
+        button('edit-find-symbolic', __('Search'), self.searchToggle_clicked)
+        self.search_text = Gtk.Entry(hexpand=True, placeholder_text=__('Place, callsign, grid, frequency or node'))
+        self.search_text.connect('activate', self.search_call)
+        toolbar.append(self.search_text)
+        self.back_button = button('go-previous-symbolic', __('Back'), self.back_clicked)
+        self.cache_button = button('document-save-symbolic', __('Cache this map view'), self.cache_clicked)
+        self.add_button = button('list-add-symbolic', __('Add Repeater'), self.add_repeater_clicked)
+        self.pref_button = button('preferences-system-symbolic', __('Settings'), self.pref_clicked)
+        self.help_button = button('help-browser-symbolic', __('Help'), self.help_clicked)
+        self.help_about_button = button('help-about-symbolic', __('About'), self.helpAbout_clicked)
+        self.vbox.append(toolbar)
+        self.latlon_entry = Gtk.Entry(editable=False)
+        self.vbox.append(self.latlon_entry)
+        self.show_tooltips = False
+        self.map.set_has_tooltip(True)
+        self.map.connect('query-tooltip', self.on_query_tooltip)
+        self.map.connect('changed', self.on_map_change)
+        keys = Gtk.EventControllerKey()
+        keys.connect('key-pressed', self._window_key)
+        self.add_controller(keys)
+        self.setViews()
+        self.displayNodes()
+        self._refresh_map()
+        if start_background:
+            self._timers.append(GLib.timeout_add(1000, self.downloadBackground))
+            self._timers.append(GLib.timeout_add_seconds(600, self._periodic_download))
+            GLib.idle_add(self._diagnostics_prompt)
+            GLib.idle_add(self.updateMessage)
 
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled.add(self.listbox)
-        #self.vbox.pack_start(scrolled, True, True, 0)
-        self.paned.pack2(scrolled, resize=True)
-        self.GTKListRows = []
-        self.playBtns = []
-        GLib.idle_add(self.updateMessage)
-        
-    def buttonPress(self,listbox, event):
-        """
-        The right click feature on repeater list items
-        """
-        if event.button == 3:
-            x = int(event.x)
-            y = int(event.y)
-            moment = event.time
-            listBoxRow = listbox.get_row_at_y(y)
-            if listBoxRow is not None:
-                listBoxRow.grab_focus()
-                # Right click menu
-                rcmenu = Gtk.Menu()
-                rcgoto = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_JUMP_TO,None)
-                if listBoxRow.repeaterID>0:
-                    rcgoto.connect("activate", self.followlink)
-                    rcgoto.repeaterID = listBoxRow.repeaterID
-                    rcgoto.set_label(__("_Goto Repeater Page"))
-                    rcgoto.show()
-                    rccomment = Gtk.ImageMenuItem.new()
-                    rccomment.connect("activate", self.followcommentlink)
-                    rccomment.repeaterID = listBoxRow.repeaterID
-                    rccomment.set_label(__("Comment"))
-                    rccomment.show()
-                    rcmenu.append(rcgoto)
-                    rcmenu.append(rccomment)
-                    #And link any other links in the description:
-                    desc = listBoxRow.get_children()[0].get_children()[0].get_children()[-1].get_text()
-                    for url in re.finditer(r'(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?', desc):
-                        link = Gtk.ImageMenuItem.new()
-                        link.url = url.group(0)
-                        link.connect("activate", self.followextralink)
-                        link.set_label(link.url)
-                        link.show()
-                        rcmenu.append(link)
-                elif int(listBoxRow.irlp)>0:
-                    rcgoto.connect("activate", self.followIRLPlink)
-                    rcgoto.irlp = listBoxRow.irlp
-                    rcgoto.set_label(__("_Goto IRLP Status page"))
-                    rcgoto.show()
-                    rcmenu.append(rcgoto)
-                else:
-                    print('Unknown data')
-                rcmenu.popup(None, None, None,None,
-                          event.button, moment)
-    
-    def resized_map(self, obj, obj2):
-        self.map_info_label.hide()
+    def _window_key(self, controller, key, code, state):
+        if key == Gdk.KEY_F11:
+            self.unfullscreen() if self.is_fullscreen() else self.fullscreen()
+            return True
+        return False
 
-    def on_get_label_position(self, overlay, widget, allocation):
-        if widget is not self.map_info_label:
+    def _diagnostics_prompt(self):
+        if self._closing:
             return False
+        diagnostics = self.settingsDialog.config['Diagnostics']
+        if 'SendReport' in diagnostics:
+            if diagnostics.getboolean('SendReport', fallback=False):
+                self.initSentry()
+        else:
+            def chosen(response):
+                enabled = response == Gtk.ResponseType.YES
+                diagnostics['SendReport'] = str(enabled)
+                self.settingsDialog.writeSettings()
+                if enabled:
+                    self.initSentry()
+            message(self, __('Do you want to send exception reports for Repeater-START?'), question=True, callback=chosen)
+        return False
 
-        # Ask the label how big it wants to be
-        _, preferred_width  = widget.get_preferred_width()
-        _, preferred_height = widget.get_preferred_height()
-        map_width  = overlay.get_allocated_width()
-        map_height = overlay.get_allocated_height()
+        
+    def buttonPress(self, gesture, count, x, y):
+        row = self.listbox.get_row_at_y(int(y))
+        if row is None or not hasattr(row, 'repeater'):
+            return
+        if self._context_popover:
+            self._context_popover.popdown()
+        rpt = row.repeater
+        popover = Gtk.Popover()
+        popover.set_parent(self.listbox)
+        rect = Gdk.Rectangle()
+        rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+        popover.set_pointing_to(rect)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        popover.set_child(box)
+        def link(label, url):
+            btn = Gtk.Button(label=label)
+            btn.connect('clicked', lambda *_: (popover.popdown(), webbrowser.open(url)))
+            box.append(btn)
+        if isinstance(rpt, HearHamRepeater):
+            link(__('Goto Repeater Page'), f'https://hearham.com/repeaters/{rpt.id}?src={os.name}')
+            link(__('Comment'), f'https://hearham.com/repeaters/{rpt.id}/comment?src={os.name}')
+        elif getattr(rpt, 'node', ''):
+            link(__('Goto IRLP Status page'), f'https://www.irlp.net/status/index.php?nodeid={rpt.node}')
+        for url in re.findall(r'https?://[^\s<>"\']+', str(getattr(rpt, 'description', ''))):
+            link(url, url)
+        if box.get_first_child() is None:
+            popover.unparent()
+            return
+        def closed(popover):
+            if self._context_popover is popover:
+                self._context_popover = None
+            if popover.get_parent():
+                popover.unparent()
+        popover.connect('closed', closed)
+        self._context_popover = popover
+        popover.popup()
 
-        x = self._info_label_x + 3   # offset right of cursor
-        y = self._info_label_y - preferred_height - 10  # float above cursor
-
-        # Clamp so it never goes off the edge of the map
-        x = max(0, min(x, map_width  - preferred_width))
-        y = max(0, min(y, map_height - preferred_height))
-
-        allocation.x      = x
-        allocation.y      = y
-        allocation.width  = preferred_width
-        allocation.height = preferred_height
-        return True  # True means "I handled it, use this allocation"
     
-    def gopremium(self, obj=None, obj2=None):
+
+    
+    def gopremium(self, *args):
         dlg = PremiumDialog(self)
-        response = dlg.run()
-        licenseKey = dlg.get_license_key()
-        dlg.destroy()
-        if response == Gtk.ResponseType.OK and len(licenseKey):
-            self.settingsDialog.config['DownloadOptions']['licenseKEY'] = licenseKey
-            self.settingsDialog.writeSettings()
-            self.downloadBackground()
+        def response(dialog, result):
+            key = dialog.get_license_key()
+            dialog.destroy()
+            if result == Gtk.ResponseType.OK and key:
+                self.settingsDialog.config['DownloadOptions']['licenseKEY'] = key
+                self.settingsDialog.writeSettings()
+                self.downloadBackground()
+        dlg.connect('response', response)
+        dlg.present()
+
     
     def followIRLPlink(self,menuItem):
         webbrowser.open('https://www.irlp.net/status/index.php?nodeid=%s' % (menuItem.irlp,) )
@@ -584,101 +453,71 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
             self.help_about_button.show()
     
     def search_call(self, widget):
-        srctext = widget.get_text()
+        text = widget.get_text().strip()
+        if not text:
+            return
         try:
-            pluscode = openlocationcode.decode(srctext)
-            self.osm.set_center(pluscode.latitudeCenter, pluscode.longitudeCenter)
-        except:
-                gridsquare = locatorToLatLng(srctext)
-                if gridsquare:
-                    self.osm.set_center(gridsquare['lat'], gridsquare['lng'])
-                #Search for number - internet node no. or frequency
-                elif re.match(r"(\d)*\.?(\d)*$", srctext):
-                    number = float(srctext)
-                    self.clearRows()
-                    lat, lon = self.osm.props.latitude, self.osm.props.longitude
-                    noneFound = True;
-                 
-                    for repeater in self.allrepeaters:
-                        km = repeater.distance(lat,lon)
-                        if self.settingsDialog.getUnit() == 'mi':
-                            km = km*.62137119
-                        freq = float(repeater.freq)
-                        off = freq + float(repeater.offset)
-                        if repeater.freq == number or number == off:
-                            row = Gtk.ListBoxRow()
-                            row.longitude = float(repeater.lon)
-                            row.latitude = float(repeater.lat)
-                            row.repeaterID = repeater.id
-                            # ^ for double click activate
-                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                            #print(repeater.callsign, repeater.freq, off, km)
-                            mainlbl = Gtk.Label("%s (%.3f/%.3f) (%.2f%s)" % (
-                                  repeater.callsign, freq, off, km, self.settingsDialog.getUnit() ), xalign=0)
-                            hbox.pack_start(mainlbl,True,True,0)
-                            row.add(hbox)
-                            self.listbox.add(row)
-                            self.searchRows.append(row)
-                            noneFound = False
-                        elif repeater.node == srctext:
-                            row = Gtk.ListBoxRow()
-                            row.longitude = float(repeater.lon)
-                            row.latitude = float(repeater.lat)
-                            row.repeaterID = repeater.id
-                            # ^ for double click activate
-                            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                            mainlbl = Gtk.Label("%s node %s (%.2f%s)" % (
-                                repeater.callsign, repeater.node, km, self.settingsDialog.getUnit()
-                            ),xalign=0)
-                            hbox.pack_start(mainlbl,True,True,0)
-                            row.add(hbox)
-                            self.listbox.add(row)
-                            self.searchRows.append(row)
-                            noneFound = False
-                    if noneFound:
-                        row = Gtk.ListBoxRow()
-                        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                        mainlbl = Gtk.Label("Sorry, nothing found for that frequency or IRLP node number",xalign=0)
-                        hbox.pack_start(mainlbl,True,True,0)
-                        row.add(hbox)
-                        self.listbox.add(row)
-                        self.searchRows.append(row)
-                    self.listbox.show_all()
-                else:
-                    thread = SearchThread(srctext, self)
-                    thread.start()
+            code = openlocationcode.decode(text)
+        except ValueError:
+            code = None
+        if code:
+            self.map.set_center(code.latitudeCenter, code.longitudeCenter)
+            return
+        try:
+            grid = locatorToLatLng(text)
+        except (ValueError, IndexError):
+            grid = None
+        if grid:
+            self.map.set_center(grid['lat'], grid['lng'])
+        elif re.fullmatch(r'\d+(?:\.\d+)?', text):
+            number = float(text)
+            self.clearRows()
+            lat, lon = self.map.viewport.props.latitude, self.map.viewport.props.longitude
+            for rpt in sorted(self.allrepeaters, key=lambda r: r.distance(lat, lon)):
+                freq = float(rpt.freq)
+                if (math.isclose(freq, number, abs_tol=1e-6) or
+                    math.isclose(freq + float(rpt.offset), number, abs_tol=1e-6) or
+                    str(getattr(rpt, 'node', '')) == text):
+                    self.addToList(rpt, lat, lon)
+            if not self.GTKListRows:
+                self.listbox.append(Gtk.Label(label=__('Nothing found for that frequency or node.')))
+        else:
+            thread = SearchThread(text, self)
+            thread.daemon = True
+            thread.start()
+
+    def search_failed(self, error):
+        if not self._closing:
+            message(self, __('Search failed: ') + error)
+        return False
+
 
     def processSearchResults(self, results_data):
-        """This function runs safely in the GTK main thread."""
+        if self._closing:
+            return False
         self.clearRows()
-        if len(results_data) == 0:
+        if not results_data:
+            self.listbox.append(Gtk.Label(label=__('Nothing found. Try a different peak, city or landmark.'), wrap=True))
+        for item in results_data:
             row = Gtk.ListBoxRow()
-            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-            mainlbl = Gtk.Label("Sorry, nothing found. Please enter a different peak, city or landmark.",xalign=0)
-            hbox.pack_start(mainlbl,True,True,0)
-            row.add(hbox)
-            self.listbox.add(row)
+            row.longitude, row.latitude = float(item['lon']), float(item['lat'])
+            row.set_child(margins(Gtk.Label(label=item['display_name'], xalign=0, wrap=True), 8))
+            self.listbox.append(row)
             self.searchRows.append(row)
-        else:
-            for item in results_data:
-                row = Gtk.ListBoxRow()
-                row.longitude = float(item['lon'])
-                row.latitude = float(item['lat'])
-                hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-                mainlbl = Gtk.Label(item['display_name'],xalign=0)
-                hbox.pack_start(mainlbl,True,True,0)
-                row.add(hbox)
-                self.listbox.add(row)
-                self.searchRows.append(row)
-        self.listbox.show_all()
+        return False
+
         
     def clearRows(self):
-        for r in self.GTKListRows:
-            r.destroy()
-        self.GTKListRows = []
-        for r in self.searchRows:
-            r.destroy()
-        self.searchRows = []
+        if self._context_popover:
+            self._context_popover.popdown()
+        while (child := self.listbox.get_first_child()) is not None:
+            # Popovers are parented explicitly, not rows owned by ListBox.
+            if isinstance(child, Gtk.Popover):
+                child.unparent()
+            else:
+                self.listbox.remove(child)
+        self.GTKListRows, self.searchRows, self.playBtns = [], [], []
+
     
     def initSentry(self):
         import sentry_sdk
@@ -698,100 +537,74 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
 		})
         print("Errors will be reported for quality control.")
         
-    def selrow(self,widget,listboxrow):
-        self.osm.set_center(listboxrow.latitude, listboxrow.longitude)
+    def selrow(self, widget, row):
+        if hasattr(row, 'latitude'):
+            self.map.set_center(row.latitude, row.longitude)
+
         
-    def selsearchrow(self, widget, listboxrow):
-        print(widget)
         
     def updateMessage(self):
-        toupdatefile = userFile('update.response')
-        if os.path.exists(toupdatefile):
-            Gdk.threads_enter()
-            try:
-                updateinfo = json.load(open(toupdatefile))
-                if str(updateinfo['version']) != self.version:
-                    dlg = Gtk.MessageDialog(self, 
-                        0,Gtk.MessageType.QUESTION,
-                        Gtk.ButtonsType.YES_NO,
-                        __('There is an update available. Do you wish to install it?')+'\n'+
-                        updateinfo['message'])
-                    response = dlg.run()
-                    if response == Gtk.ResponseType.YES:
-                        webbrowser.open(updateinfo['link'])
-                    dlg.destroy()
-            except:
-                print('Error update check')
-            Gdk.threads_leave()
+        if self._closing:
+            return False
+        try:
+            with open(userFile('update.response')) as infile:
+                info = json.load(infile)
+            if str(info['version']) != self.version:
+                message(self, __('There is an update available. Do you wish to install it?') + '\n' + info['message'],
+                        question=True, callback=lambda response: webbrowser.open(info['link']) if response == Gtk.ResponseType.YES else None)
+        except (OSError, ValueError, KeyError):
+            pass
+        return False
+
     
-    def linkLabel(self, lbltext, connectfunction):
-        """ Like a label, clickable. https://stackoverflow.com/questions/5822191/ """
-        lbl = Gtk.Label(lbltext, xalign=1);
-        lbl.set_has_window(True)
-        lbl.set_events(Gdk.EventMask.BUTTON_PRESS_MASK)
-        lbl.override_color(Gtk.StateFlags.NORMAL,  Gdk.RGBA(0.0, 0.0, 0.8, 1.0))
-        lbl.connect("button-press-event", connectfunction)
-        return lbl
         
 
 
     def displayNodes(self):
-        start = time.time();
-        self.osm.image_remove_all()
-        minimum = self.settingsDialog.getMinFilter()
-        maximum = self.settingsDialog.getMaxFilter()
-        self.allrepeaters = []
-
-        for rpt in self.settingsDialog.config['Repeaters']:
-            url = self.settingsDialog.config['Repeaters'][rpt]
-            if url.find('hearham.com/api/repeaters/v1') >-1:
-                #The standard repeaters shown:
-                irlpfile = userFile('irlp.txt')
-                repeatersfile = userFile('repeaters.json')
-                if os.path.exists(irlpfile):
-                    with open(irlpfile) as repfile:
-                        for line in repfile:
+        if self._closing:
+            return False
+        minimum, maximum = self.settingsDialog.getMinFilter(), self.settingsDialog.getMaxFilter()
+        self.allrepeaters, self._marker_data = [], []
+        for name, url in self.settingsDialog.getShown().items():
+            if 'hearham.com/api/repeaters/v1' in url:
+                try:
+                    with open(userFile('irlp.txt')) as infile:
+                        for line in infile:
                             try:
                                 self.addRepeaterIcon(IRLPNode(line), minimum, maximum)
-                            except ValueError as e:
-                                print(e)
-                else:
-                    print('WARNING IRLP FILE NOT LOADED')
-                if os.path.exists(repeatersfile):
-                    for repeater in json.load(open(repeatersfile)):
-                        #IRLP has been done in direct pull above.
-                        if repeater['group'] != 'IRLP':
-                            #Slow LibOSM issue https://github.com/nzjrs/osm-gps-map/issues/104
-                            GLib.idle_add(self.addRepeaterIcon, HearHamRepeater(repeater), minimum, maximum)
-                            #self.addRepeaterIcon(HearHamRepeater(repeater), minimum, maximum)
-                else:
-                    print('WARNING: REPEATERS FILE NOT LOADED')
+                            except (ValueError, IndexError):
+                                continue
+                except OSError:
+                    pass
+                try:
+                    with open(userFile('repeaters.json')) as infile:
+                        data = json.load(infile)
+                    for item in data:
+                        if item.get('group') != 'IRLP':
+                            try:
+                                self.addRepeaterIcon(HearHamRepeater(item), minimum, maximum)
+                            except (ValueError, TypeError, KeyError):
+                                continue
+                except (OSError, ValueError):
+                    pass
             else:
-                customfile = userFile('rpt-'+rpt+'.csv')
-                if os.path.exists(customfile):
-                    csv = CsvRepeaterListing(customfile)
-                    icon = csv.getIcon()
-                    iconDown = icon;
+                filename = userFile('rpt-' + name + '.csv')
+                if not os.path.exists(filename):
+                    continue
+                try:
+                    listing = CsvRepeaterListing(filename, download_icon=False)
+                    icon = listing.getIcon()
+                    # Keep the supplied custom symbol for up repeaters; down
+                    # repeaters use the application's red tower symbol.
+                    for rpt in listing.repeaters:
+                        self.addRepeaterWithIcon(rpt, minimum, maximum,
+                                                self.towerDownPic if rpt.isDown() else icon)
+                except (OSError, ValueError, IndexError, AttributeError, GLib.Error) as error:
+                    print('Cannot read repeater source:', name, error)
+        self.map.set_repeaters(self._marker_data)
+        self.refreshListing()
+        return False
 
-                    # Get pixel data
-                    pixels = bytearray(iconDown.get_pixels())
-                    for y in range(iconDown.get_height()):
-                        for x in range(iconDown.get_width()):
-                            offset = y * iconDown.get_rowstride() + x * iconDown.get_n_channels()
-                            # Set red color (R, G, B)
-                            pixels[offset] = 255
-                            pixels[offset + 1] = 0
-                            pixels[offset + 2] = 0
-                    pixels = bytes(pixels)
-                    iconDown = GdkPixbuf.Pixbuf.new_from_data(pixels, icon.get_colorspace(), icon.get_has_alpha(),
-                                        icon.get_bits_per_sample(), icon.get_width(),
-                                        icon.get_height(), icon.get_rowstride())
-
-                    for r in csv.repeaters:
-                        if r.isDown():
-                            self.addRepeaterWithIcon(r, minimum, maximum, iconDown)   
-                        else:
-                            self.addRepeaterWithIcon(r, minimum, maximum, icon)
         
         #print('DISPLAYNODES took '+str(time.time()-start))
     
@@ -803,100 +616,74 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         webbrowser.open('https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater, minimum, maximum):
-        if(float(repeater.freq) >= minimum and
-           float(repeater.freq) <= maximum ):
-            if repeater.isDown():
-                pixbuf = self.towerDownPic
-            else:
-                pixbuf = self.towerPic
-            self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
-            self.allrepeaters.append(repeater)
+        icon = self.towerDownPic if repeater.isDown() else self.towerPic
+        self.addRepeaterWithIcon(repeater, minimum, maximum, icon)
+
             
-    def addRepeaterWithIcon(self, repeater, minimum, maximum, pixbuf):
-        if(float(repeater.freq) >= minimum and
-           float(repeater.freq) <= maximum ):
-            self.osm.image_add(repeater.lat, repeater.lon, pixbuf)
+    def addRepeaterWithIcon(self, repeater, minimum, maximum, icon):
+        if minimum <= float(repeater.freq) <= maximum:
             self.allrepeaters.append(repeater)
+            self._marker_data.append((repeater, icon))
 
 
-    def disable_cache_toggled(self, btn):
-        if btn.props.active:
-            self.osm.props.tile_cache = osmgpsmap.MAP_CACHE_DISABLED
-        else:
-            self.osm.props.tile_cache = osmgpsmap.MAP_CACHE_AUTO
+
 
     def on_show_tooltips_toggled(self, btn):
         self.show_tooltips = btn.props.active
 
-    def print_tiles(self):
-        if self.osm.props.tiles_queued != 0:
-            print( '%s tiles queued' % (self.osm.props.tiles_queued,) )
-        return True
 
     def downloadBackground(self):
-        if self.bgdl == None:
-            if not(isMobileData()) or self.settingsDialog.getAllowMobile():
-                self.checkUpdate = BackgroundDownload('https://hearham.com/api/updatecheck/linux', userFile('update.response'))
-                self.checkUpdate.start()
-                if 'licenseKEY' in self.settingsDialog.config['DownloadOptions']:
-                    self.premiumUpdate = BackgroundDownloadZip('https://hearham.com/api/repeaters/v1/radios?key='+self.settingsDialog.config['DownloadOptions']['licenseKEY'], userFile('premium.zip'))
-                    self.premiumUpdate.start()
-                else:
-                    promo = BackgroundDownload('https://hearham.com/premiumpromo.txt', userFile('promo.txt'))
-                    promo.start()
-                
-                for rpt in self.settingsDialog.config['Repeaters']:
-                    url = self.settingsDialog.config['Repeaters'][rpt]
-
-                    if url.find('hearham.com/api/repeaters/v1') >-1:
-                        self.bgdl = BackgroundDownload('https://hearham.com/nohtmlstatus.txt', userFile('irlp.txt'))
-                        self.bgdl.start()
-                        
-                        self.hearhamdl = BackgroundDownload('https://hearham.com/api/repeaters/v1', userFile('repeaters.json'))
-                        self.hearhamdl.start()
-
-                    elif url.find('.csv') >-1:
-                        csv = BackgroundDownload(url, userFile('rpt-'+rpt+'.csv'))
-                        csv.start()
-                    else:
-                        print('Unknown repeater list not added : '+url)
-                
-                #Call again 10m later
-            else:
-                print('(not downloading, mobile)')
-
-            GLib.timeout_add(600000, self.downloadBackground)
-            if 0 == len(self.allrepeaters):
-                GLib.timeout_add(10000, self.displayNodes)
+        if self._closing or any(not job.finished for job in self._downloads):
+            return False
+        if isMobileData() and not self.settingsDialog.getAllowMobile():
+            return False
+        jobs = [('https://hearham.com/api/updatecheck/linux', 'update.response', BackgroundDownload)]
+        options = self.settingsDialog.config['DownloadOptions']
+        if 'licenseKEY' in options:
+            jobs.append(('https://hearham.com/api/repeaters/v1/radios?key=' + urllib.parse.quote(options['licenseKEY']), 'premium.zip', BackgroundDownloadZip))
         else:
-            if self.bgdl.finished:
-                self.displayNodes()
-                if self.bgdl.success:
-                    #Since we're online, do cleanup of any ancient files, clean up and also due to Mapbox TOS:
-                    old = time.time() - 60*60*24*31
-                    print( 'Going back to %s' % (old,))
-                    for root, dirs, files in os.walk(self.osm.get_default_cache_directory()):
-                        for jpg in files:
-                            path = os.path.join(root, jpg)
-                            if jpg.endswith('.jpg') and os.path.getmtime(path) < old:
-                                print('Old, removing '+path)
-                                os.remove(path)
-                self.bgdl = None #and do create thread again:
-                self.downloadBackground()
+            jobs.append(('https://hearham.com/premiumpromo.txt', 'promo.txt', BackgroundDownload))
+        for name, url in self.settingsDialog.getShown().items():
+            if 'hearham.com/api/repeaters/v1' in url:
+                jobs.extend([('https://hearham.com/nohtmlstatus.txt', 'irlp.txt', BackgroundDownload),
+                             ('https://hearham.com/api/repeaters/v1', 'repeaters.json', BackgroundDownload)])
+            elif '.csv' in url:
+                jobs.append((url, 'rpt-' + name + '.csv', BackgroundDownload))
+        self._downloads = [cls(url, userFile(filename)) for url, filename, cls in jobs]
+        for job in self._downloads:
+            job.daemon = True
+            job.start()
+        self._download_poll_id = GLib.timeout_add(300, self._downloads_finished)
+        return False
+
+    def _periodic_download(self):
+        self.downloadBackground()
+        return not self._closing
+
+    def _downloads_finished(self):
+        if self._closing:
+            return False
+        if any(not job.finished for job in self._downloads):
+            return True
+        self._download_poll_id = 0
+        self.displayNodes()
+        return False
+
             
 
     def zoom_in_clicked(self, button):
-        self.osm.set_zoom(self.osm.props.zoom + 1)
+        self.map.set_zoom(self.map.viewport.props.zoom_level + 1)
 
     def zoom_out_clicked(self, button):
-        self.osm.set_zoom(self.osm.props.zoom - 1)
+        self.map.set_zoom(self.map.viewport.props.zoom_level - 1)
 
     def home_clicked(self, button):
-        #self.getlocation() #Freezes up, odd.
-        GLib.timeout_add(1, self.getlocation)
+        self.lastLat, self.lastLon = self.map.viewport.props.latitude, self.map.viewport.props.longitude
+        Geoclue.Simple.new('repeaterstart', Geoclue.AccuracyLevel.EXACT, None, self.getlocation)
+
         
     def back_clicked(self, button):
-        self.osm.set_center_and_zoom(self.lastLat, self.lastLon, 12)
+        self.map.set_center_and_zoom(self.lastLat, self.lastLon, 12)
         
     def searchToggle_clicked(self,button):
         if self.mode == 'search':
@@ -907,360 +694,243 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         self.setViews()
         
     def help_clicked(self, button):
-        dlg = Gtk.MessageDialog(self, 
-            0,Gtk.MessageType.INFO,
-            Gtk.ButtonsType.OK,
-            'Repeater-START is an application for amateur radio.\nWhen started, this app will try to update the latest repeaters.\n'+
-            'If offline, the list will be loaded from user storage.\n'+
-            'While online, you may hit "cache" and store map tiles for later use, and choose "add repeater" to contribute to the repeater database!\n'
-            'All repeaters in the lower half of the screen are listed by distance, closest to the center map marker first.\n'+
-            'Double click a repeater to center its position selected on the map.\n'+
-            'Or click play to try to listen through a RTLSDR device.')
-        response = dlg.run()
-        dlg.destroy()
+        message(self, __('Repeater-START finds amateur radio repeaters near the map center.\n'
+            'Pan or zoom the map; nearby repeaters are sorted by distance. Click a marker for its callsign and frequency, or double-click a list row to center it.\n'
+            'Search by place, callsign, Maidenhead grid, Plus Code, frequency or IRLP node.\n'
+            'Cache downloads this view and two deeper zoom levels for offline use. Click again to cancel.\n'
+            'Settings controls units, frequency filters and repeater sources. Play listens with RTL-SDR and SoX.'))
+
         
-    def helpAbout_clicked(self,button):
+    def helpAbout_clicked(self, button):
         changed = 'never'
-        rptfile = userFile('repeaters.json')
-        if os.path.exists(rptfile):
-            changed = datetime.datetime.fromtimestamp(os.path.getmtime(userFile('repeaters.json'))).strftime('%c')
-        dlg = Gtk.MessageDialog(self, 
-            0,Gtk.MessageType.INFO,
-            Gtk.ButtonsType.OK,
-            'Repeater-START v'+self.version+'\n'+
-            'Showing The Amateur Repeaters Tool - The only open-source Linux desktop repeater app utilizing the open-data repeater database.\n\n'+
-            'Your downloaded repeater database was updated:\n'+changed+
-            '\nFor support/questions please use the Github issues or contact@hearham.live.')
-        response = dlg.run()
-        dlg.destroy()
+        filename = userFile('repeaters.json')
+        if os.path.exists(filename):
+            changed = datetime.datetime.fromtimestamp(os.path.getmtime(filename)).strftime('%Y-%m-%d %H:%M')
+        message(self, f'Repeater-START {self.version}\nGTK4 / libshumate\n'
+                f'Repeater data updated: {changed}\nhttps://hearham.com/repeaters\n'
+                'Support: contact@hearham.live', title=__('About'))
+
     
     def pref_clicked(self,button):
         self.settingsDialog.show()
         
-    def getlocation(self):
-        self.lastLat = self.osm.props.latitude
-        self.lastLon = self.osm.props.longitude
+    def getlocation(self, source, result):
+        if self._closing:
+            return
         try:
-            clue = Geoclue.Simple.new_sync('repeaterstart',Geoclue.AccuracyLevel.EXACT,None)
-            location = clue.get_location()
-            self.osm.set_center_and_zoom(location.get_property('latitude'), location.get_property('longitude'), 12)
-        except GLib.Error as err:
-            print(err)
-            GLib.idle_add(self.privacySettingsOpen)
+            self._geoclue = Geoclue.Simple.new_finish(result)
+            location = self._geoclue.get_location()
+            self.map.set_center_and_zoom(location.props.latitude, location.props.longitude, 12)
+        except GLib.Error as error:
+            message(self, __('Unable to find your location. Check your desktop location permissions.') + '\n' + str(error))
+
             
     
-    def privacySettingsOpen(self):
-        Gdk.threads_enter()
-        dlg = Gtk.MessageDialog(self, 
-            0,Gtk.MessageType.WARNING,
-            Gtk.ButtonsType.OK,
-            __('Please allow geolocation to use this feature.'))
-        response = dlg.run()
-        dlg.destroy()
-        try:
-            subprocess.Popen(['gnome-control-center','privacy'])
-        except:
-            if self.is_geoclue_active() :
-                msg="Gnome-control-center not found but Geoclue is active. Check your desktop environment's location settings."
-            else:
-                msg="Geoclue is not active, not able to detect location from network or GPS."
-            print(msg)
-        Gdk.threads_leave()
-
-    def is_geoclue_active(self):
-        try:
-            result = subprocess.run(
-                ['systemctl', 'status', 'geoclue'],
-                capture_output=True,
-                text=True
-            )
-            return 'active (running)' in (result.stdout + result.stderr)
-        except Exception:
-            return False
 
 
-    def on_query_tooltip(self, widget, x, y, keyboard_tip, tooltip, data=None):
-        if keyboard_tip:
-            return False
 
-        if self.show_tooltips:
-            #print(dir(osmgpsmap))
-            #while True:
-            #    print(eval(input('>')))
-            #p = osmgpsmap.point_new_degrees(0.0, 0.0)
-            p=self.osm.convert_screen_to_geographic(x, y)#, p)
-            lat,lon = p.get_degrees()
-            tooltip.set_markup("%+.4f, %+.4f" % (lat, lon ))
+    def on_query_tooltip(self, widget, x, y, keyboard_tip, tooltip):
+        if not keyboard_tip and self.show_tooltips:
+            lat, lon = self.map.screen_to_location(x, y)
+            tooltip.set_text(f'{lat:+.4f}, {lon:+.4f}')
             return True
-
         return False
 
+
     def cache_clicked(self, button):
-        bbox = self.osm.get_bbox()
-        maxz = self.osm.props.max_zoom
-        if maxz - self.osm.props.zoom > 2:
-            maxz = self.osm.props.zoom + 2
-        print( '%s max %s' % (self.osm.props.zoom, maxz) )
-        self.osm.download_maps(
-            *bbox,
-            zoom_start=self.osm.props.zoom,
-            zoom_end=maxz
-        )
+        if self.map._prefetch:
+            self.map.cancel_cache()
+            return
+        def progress(done, total, failures, cancelled):
+            self.cache_button.set_tooltip_text(f'Cache: {done}/{total}; {failures} failed. Click to cancel.')
+            if self.map._prefetch is None:
+                self.cache_button.set_icon_name('document-save-symbolic')
+                self.cache_button.set_tooltip_text(__('Cache this map view'))
+                text = __('Caching cancelled.') if cancelled else f'Cached {done-failures}/{total} tiles.'
+                if failures and not cancelled:
+                    text += ' Some tiles could not be downloaded; check your connection.'
+                self.latlon_entry.set_text(text)
+        try:
+            self.cache_button.set_icon_name('process-stop-symbolic')
+            self.map.cache_view(progress)
+        except ValueError as error:
+            self.cache_button.set_icon_name('document-save-symbolic')
+            message(self, str(error))
+
         
     def add_repeater_clicked(self, button):
-        webbrowser.open("https://hearham.com/repeaters/add?lat=%s&lon=%s" % (self.osm.props.latitude, self.osm.props.longitude) )
+        webbrowser.open("https://hearham.com/repeaters/add?lat=%s&lon=%s" % (self.map.viewport.props.latitude, self.map.viewport.props.longitude) )
 
-    def on_map_change(self, event):
-        if self.renderedLat != self.osm.props.latitude or self.renderedLon != self.osm.props.longitude:
-            #Center changed.
-            #print('changed to '+str(self.osm.props.latitude) + ','+str(self.osm.props.longitude) )
-            self.renderedLat = self.osm.props.latitude
-            self.renderedLon = self.osm.props.longitude
+    def on_map_change(self, widget):
+        if self._map_change_id:
+            GLib.source_remove(self._map_change_id)
+        self._map_change_id = GLib.timeout_add(180, self._refresh_map)
 
-            t = time.time()
-            text = __('Map Center:')+' %s, latitude %s longitude %s' if self.mainScreen.get_width() > 800 else '%s, lat: %s lon: %s'
-            if self.settingsDialog.getMinFilter()>-1 or self.settingsDialog.getMaxFilter()<1E99:
-                text += ' '+__('(Repeaters filtered in settings)')
-            self.latlon_entry.set_text(
-                text % (
-                    latLongToLocator(self.renderedLat, self.renderedLon),
-                    round(self.osm.props.latitude, 4),
-                    round(self.osm.props.longitude, 4)
-                )
-            )
+    def _refresh_map(self):
+        self._map_change_id = 0
+        if self._closing:
+            return False
+        lat, lon = self.map.viewport.props.latitude, self.map.viewport.props.longitude
+        if (self.renderedLat, self.renderedLon) != (lat, lon):
+            self.renderedLat, self.renderedLon = lat, lon
+            text = f'{__("Map Center:")} {latLongToLocator(lat, lon)}, {lat:.4f}, {lon:.4f}'
+            if self.settingsDialog.getMinFilter() > -1 or self.settingsDialog.getMaxFilter() < 1e99:
+                text += ' ' + __('(Repeaters filtered in settings)')
+            self.latlon_entry.set_text(text)
             self.refreshListing()
-            self.map_info_label.hide()
-            print('on_map_change time: %s' % (time.time()  - t))
-            #elevation profiles:
-            for window, entry in self._elevation_windows.items():
-                btn = entry["btn"]
-                old_track = entry["track"]
-                # so swap in a fresh track with the updated endpoint.
-                self.osm.track_remove(old_track)
-                new_track = self._make_track([(btn.lat, btn.lon), (self.osm.props.latitude, self.osm.props.longitude)])
-                self.osm.track_add(new_track)
-                entry["track"] = new_track
+            for window, entry in list(self._elevation_windows.items()):
+                btn = entry['btn']
+                self.map.remove_overlay_layer(entry['track'])
+                entry['track'] = self._make_track([(btn.lat, btn.lon), (lat, lon)])
+                self.map.add_overlay_layer(entry['track'])
                 window.loadsvg(self._svg_url(btn))
+        return False
+
     
     def refreshListing(self):
-        # cursor lat,lon = self.osm.get_event_location(event).get_degrees()
-        lat, lon = self.osm.props.latitude, self.osm.props.longitude
-        maxkm = 500
-        self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
+        lat, lon = self.map.viewport.props.latitude, self.map.viewport.props.longitude
         self.clearRows()
-        self.playBtns = []
-        added = 0
-        #The settinds parser take a bit of time. Get number once.
-        minimum = self.settingsDialog.getMinFilter()
-        maximum = self.settingsDialog.getMaxFilter()
-        for item in self.allrepeaters:
-            distance = item.distance(lat,lon)
-            if( distance < maxkm and 
-              float(item.freq) >= minimum and
-              float(item.freq) <= maximum ):
-                self.addToList(item, lat,lon)
-            added += 1
-            if added > 100: #Listing excessively many makes it laggy, eg New England repeaters.
+        minimum, maximum = self.settingsDialog.getMinFilter(), self.settingsDialog.getMaxFilter()
+        for rpt in sorted(self.allrepeaters, key=lambda r: r.distance(lat, lon)):
+            if rpt.distance(lat, lon) > 500:
                 break
-        self.listbox.show_all()
+            if minimum <= float(rpt.freq) <= maximum:
+                self.addToList(rpt, lat, lon)
+                if len(self.GTKListRows) >= 100:
+                    break
+
     
     def addToList(self, repeater, lat, lon):
         row = Gtk.ListBoxRow()
-        row.longitude = repeater.lon
-        row.latitude = repeater.lat
-        if isinstance(repeater, HearHamRepeater):
-            row.repeaterID = repeater.id
-            row.irlp = 0
-        else:#Irlpnode:
-            row.repeaterID = 0
-            row.irlp = repeater.node
-        # ^ for double click activate
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        row.add(hbox)
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        hbox.pack_start(vbox, True, True, 0)
-        innerhbox = Gtk.HBox()
+        row.repeater = repeater
+        row.latitude, row.longitude = float(repeater.lat), float(repeater.lon)
+        box = margins(Gtk.Box(spacing=8), 8)
+        row.set_child(box)
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
+        box.append(text)
+        title = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        title.add_css_class('repeater-title')
+        node = getattr(repeater, 'node', '')
+        caption = f'{repeater.callsign}, {repeater.freq} MHz'
         if float(repeater.freq) == 0:
-            lbltext = "%s Reflector %s" if self.mainScreen.get_width() < 800 else "Node %s Reflector %s"
-            label1 = Gtk.Label(lbltext % (repeater.node, repeater.callsign), xalign=0)
-        else:
-            if repeater.node:
-                lbltext = "%s, %s at %sMHz" if self.mainScreen.get_width() < 800 else "Node %s, %s at %sMHz"
-                lbltext = lbltext % (repeater.node, repeater.callsign, repeater.freq)
-                label1 = Gtk.Label(lbltext, xalign=0)
-                if repeater.isDown():
-                    label1.set_markup('<s>'+lbltext+'</s>')
-            else:
-                lbltext = "%s, %sMHz" % (repeater.callsign, repeater.freq)
-                label1 = Gtk.Label(lbltext, xalign=0)
-                if not repeater.status:
-                    label1.set_markup('<s>'+lbltext+'</s>')
-        displayOffset = repeater.offset
-        if float(displayOffset) > 0:
-            displayOffset = ("+%sMHz" % (displayOffset,))
-        elif float(displayOffset) < 0:
-            displayOffset = ("%sMHz" % (displayOffset,))
+            caption = f'{repeater.callsign} Reflector {node}'
+        elif node:
+            caption += f' · Node {node}'
+        title.set_markup(('<s>' + GLib.markup_escape_text(caption) + '</s>') if repeater.isDown() else GLib.markup_escape_text(caption))
+        text.append(title)
+        details = Gtk.Label(label=f'PL {repeater.pl}, Offset {repeater.offset} MHz · {repeater.status}', xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        text.append(details)
+        description = Gtk.Label(label=str(getattr(repeater, 'description', '')), xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        text.append(description)
         try:
-            int(repeater.status)
-            linkknown = False
-            for item in self.allrepeaters:
-                if item.node == repeater.status:
-                    gothere = Gtk.Button("Linked to %s " % (str(repeater.status),))
-                    innerhbox.pack_start(gothere, False, False, 0)
-                    gothere.connect('clicked', self.goLinkIRLP)
-                    linkknown = True
-            if not linkknown and int(repeater.status) >1:
-                innerhbox.pack_start(Gtk.Label("Linked to %s. " % (repeater.status,), xalign=0),False, False, 0)
-            label2 = Gtk.Label("PL %s, Offset %s, %s" % (repeater.pl, displayOffset, repeater.url), xalign=0)
-        except ValueError:
-            #Not connected to number node
-            if float(repeater.freq) == 0:
-                label2 = Gtk.Label(repeater.city, xalign=0)
-            else:
-                label2 = Gtk.Label("%s. PL %s, Offset %s, %s" % (repeater.status, repeater.pl, displayOffset, repeater.url), xalign=0)
-        
-        label3 = Gtk.Label(repeater.description, xalign=0)
-        innerhbox.pack_start(label2, True, True, 0)
-        
-        label1.set_ellipsize(Pango.EllipsizeMode.END)
-        label2.set_ellipsize(Pango.EllipsizeMode.END)
-        label3.set_ellipsize(Pango.EllipsizeMode.END)
-        if self.mainScreen.get_width() < 800:
-            label2.modify_font(Pango.font_description_from_string("Ubuntu 10"))
-            label3.modify_font(Pango.font_description_from_string("Ubuntu 10"))
-        
-        if self.mainScreen.get_width() < 800:
-            #mobile
-            label1.modify_font(Pango.font_description_from_string("Ubuntu Bold 12"))
-        else:
-            label1.modify_font(Pango.font_description_from_string("Ubuntu Bold 22"))
-        vbox.pack_start(label1, True, True, 5)
-        vbox.pack_start(innerhbox, True, True, 0)
-        vbox.pack_start(label3, True, True, 5)
-        km = repeater.distance(lat,lon)
-        if self.settingsDialog.getUnit() == 'mi':
-            km = km*.62137119
-        
-        distlbl = Gtk.Label( '%s %s ' % ( int(km*10)/10, self.settingsDialog.getUnit() ))
-        playbtn = Gtk.Button()
-        playbtn.set_image(Gtk.Image(icon_name='media-playback-start',
-                      icon_size=self.PLAYSIZE))
-        #playbtn.set_label('') Makes icon disappear, on many systems with button icon turned off.
-        playbtn.selFrequency = repeater.freq
-        if repeater.freq == self.playingfreq:
-            playbtn.set_image(Gtk.Image(icon_name='media-playback-stop',
-                      icon_size=self.PLAYSIZE))
-        else:
-            playbtn.set_image(Gtk.Image(icon_name='media-playback-start',
-                      icon_size=self.PLAYSIZE))
-        helpbtn = Gtk.Button()
-        helpbtn.repeater = repeater;
-        helpbtn.set_image(Gtk.Image(icon_name='help-browser',
-                      icon_size=self.PLAYSIZE))
-        helpbtn.set_tooltip_text(__('Radio Setup Help'))
+            linked = int(repeater.status)
+        except (TypeError, ValueError):
+            linked = 0
+        if linked > 1:
+            link = Gtk.Button(label=f'Linked to {linked}')
+            link.connect('clicked', self.goLinkIRLP)
+            text.append(link)
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        distance = repeater.distance(lat, lon)
+        unit = self.settingsDialog.getUnit()
+        if unit == 'mi':
+            distance *= 0.62137119
+        right.append(Gtk.Label(label=f'{distance:.1f} {unit}'))
+        buttons = Gtk.Box(spacing=2)
+        play = Gtk.Button(icon_name='media-playback-stop-symbolic' if repeater.freq == self.playingfreq else 'media-playback-start-symbolic', tooltip_text=__('Listen with RTL-SDR'))
+        play.selFrequency = repeater.freq
+        play.connect('clicked', self.playpause)
+        buttons.append(play)
+        helpbtn = Gtk.Button(icon_name='help-browser-symbolic', tooltip_text=__('Radio Setup Help'))
+        helpbtn.repeater = repeater
         helpbtn.connect('clicked', self.helppro)
-        elevationbtn = Gtk.Button()
-        mtnpic = GdkPixbuf.Pixbuf.new_from_file_at_scale('mtns.svg',width=32,height=32,preserve_aspect_ratio=True)
-        elevationbtn.set_image(Gtk.Image.new_from_pixbuf(mtnpic))
-        elevationbtn.lat = repeater.lat
-        elevationbtn.lon = repeater.lon
-        elevationbtn.call = repeater.callsign
-        elevationbtn.connect('clicked', self.elevationDisplay)
-        playbtn.connect('clicked', self.playpause)
-        rightbox = Gtk.VBox()
-        rightbox.pack_start(distlbl, False, True, 10)
-        rightbox.pack_start(playbtn, True, True, 0)
-        rightbox.pack_start(helpbtn, True, True, 0)
-        rightbox.pack_start(elevationbtn, True, True, 0)
-        hbox.pack_start(rightbox, False, True, 0)
-        
-        #These two arrays should correspond!
+        buttons.append(helpbtn)
+        elevation = Gtk.Button(tooltip_text=__('Elevation profile'))
+        picture = Gtk.Image.new_from_file(asset('mtns.svg'))
+        picture.set_pixel_size(24)
+        elevation.set_child(picture)
+        elevation.lat, elevation.lon, elevation.call = repeater.lat, repeater.lon, repeater.callsign
+        elevation.connect('clicked', self.elevationDisplay)
+        buttons.append(elevation)
+        right.append(buttons)
+        box.append(right)
         self.GTKListRows.append(row)
-        self.playBtns.append(playbtn)
-        self.listbox.add(row)
+        self.playBtns.append(play)
+        self.listbox.append(row)
+
 
     # ---------- track helpers ----------
 
-    def _make_track(self, points, color_hex="#FF0000", width=4):
-        line = osmgpsmap.MapTrack()
-        for lat, lon in points:
-            line.add_point(osmgpsmap.MapPoint.new_degrees(lat, lon))
+    def _make_track(self, points, color_hex='#FF0000', width=4):
+        return self.map.make_path(points, color_hex, width)
 
-        if color_hex.startswith('#'):
-            r = int(color_hex[1:3], 16) / 255.0
-            g = int(color_hex[3:5], 16) / 255.0
-            b = int(color_hex[5:7], 16) / 255.0
-        else:
-            r, g, b = (1.0, 0.0, 0.0)
-
-        rgba = Gdk.RGBA()
-        rgba.red, rgba.green, rgba.blue, rgba.alpha = r, g, b, 1.0
-        line.set_property("color", rgba)
-        line.set_property("line-width", width)
-        return line
 
     def _svg_url(self, btn):
         return 'https://hearham.com/api/topo/v1/svg?lat1=%s&lon1=%s&lat2=%s&lon2=%s' % (
-            btn.lat, btn.lon, self.osm.props.latitude, self.osm.props.longitude
+            btn.lat, btn.lon, self.map.viewport.props.latitude, self.map.viewport.props.longitude
         )
 
     # ---------- elevation windows ----------
 
     def elevationDisplay(self, btn):
         track = self._make_track([(btn.lat, btn.lon),
-                                   (self.osm.props.latitude, self.osm.props.longitude)])
-        self.osm.track_add(track)
+                                 (self.map.viewport.props.latitude, self.map.viewport.props.longitude)])
+        self.map.add_overlay_layer(track)
         window = SVGLoaderWindow(self, self._svg_url(btn), btn.call)
-        window.show_all()
-
-        self._elevation_windows[window] = {"track": track, "btn": btn}
-        window.connect('destroy', self._on_elevation_window_destroy, window)
-
+        self._elevation_windows[window] = {'track': track, 'btn': btn}
+        window.connect('close-request', self._on_elevation_window_destroy, window)
+        window.present()
         return window
+
 
     def _on_elevation_window_destroy(self, widget, window):
         entry = self._elevation_windows.pop(window, None)
-        if entry is not None:
-            self.osm.track_remove(entry["track"])
+        if entry:
+            self.map.remove_overlay_layer(entry['track'])
+        return False
+
 
     def playpause(self, btn):
-        if( os.system('rtl_fm') < 257 and os.system('play --version') < 257 ):
-            if btn.selFrequency != self.playingfreq:
-                self.playRTLSDR(btn.selFrequency)
-                self.playingfreq = btn.selFrequency
-                for b in self.playBtns:
-                    b.set_image(Gtk.Image(icon_name='media-playback-start',
-                        icon_size=self.PLAYSIZE))
-                #All others are stopped.
-                btn.set_image(Gtk.Image(icon_name='media-playback-stop',
-                        icon_size=self.PLAYSIZE))
-                sleep(0.5)
-                poll = self.rtllistener.proc.poll()
-                if poll is not None:
-                    # Process exited early, warn and set back the button.
-                    dialogWindow = Gtk.MessageDialog(self,
-                        Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-                        Gtk.MessageType.ERROR,
-                        Gtk.ButtonsType.OK,
-                        'RTLSDR device not connected?')
-                    dialogWindow.set_title('Device not found')
-                    dialogWindow.show_all()
-                    response = dialogWindow.run()
-                    dialogWindow.destroy()
-                    btn.set_image(Gtk.Image(icon_name='media-playback-start',
-                        icon_size=self.PLAYSIZE))
-            else:
-                if self.rtllistener:
-                    self.rtllistener.stop()
-                self.playingfreq = None
-                btn.set_image(Gtk.Image(icon_name='media-playback-start',
-                        icon_size=self.PLAYSIZE))
-        else:
-            #Prompt to install:
-            if shutil.which('rpm') and shutil.which('dnf'): #Fedora/RHL:
-                os.system('pkexec --user root dnf install -y rtl-sdr sox')
-            else: #Ubuntu/debian:
-                os.system('pkexec --user root apt install -y rtl-sdr sox')
+        if self.playingfreq == btn.selFrequency:
+            self._stop_radio()
+            return
+        if not shutil.which('rtl_fm') or not shutil.which('play'):
+            message(self, __('Install rtl-sdr and sox to listen to a repeater.'))
+            return
+        self._stop_radio()
+        try:
+            self.playRTLSDR(btn.selFrequency)
+        except (OSError, ValueError) as error:
+            message(self, str(error))
+            return
+        self.playingfreq = btn.selFrequency
+        self._radio_icons()
+        self._radio_poll_id = GLib.timeout_add(500, self._poll_radio)
+
+    def _radio_icons(self):
+        for button in self.playBtns:
+            button.set_icon_name('media-playback-stop-symbolic' if button.selFrequency == self.playingfreq else 'media-playback-start-symbolic')
+
+    def _stop_radio(self):
+        if getattr(self, '_radio_poll_id', 0):
+            GLib.source_remove(self._radio_poll_id)
+            self._radio_poll_id = 0
+        if self.rtllistener:
+            self.rtllistener.stop()
+            self.rtllistener = None
+        self.playingfreq = None
+        self._radio_icons()
+
+    def _poll_radio(self):
+        if self._closing:
+            return False
+        if self.rtllistener and self.rtllistener.exited():
+            self._radio_poll_id = 0
+            self._stop_radio()
+            message(self, __('Radio playback stopped. Check the RTL-SDR device and audio output.'))
+            return False
+        return True
+
 
     def goLinkIRLP(self, btn):
         label = btn.get_label()
@@ -1268,108 +938,63 @@ Enter an repository URL to fetch map tiles from in the box below. Special metach
         label = label.replace('Linked to','').strip()
         for item in self.allrepeaters:
             if item.node == label:
-                self.osm.set_center(item.lat, item.lon)
+                self.map.set_center(item.lat, item.lon)
 
-    def on_button_release(self, osm, event):
-        pass # Not the right lat/lon props here.
         
     def helppro(self, el):
-        if os.path.exists(userFile('.hidden')):#self.settingsDialog.config['licenseKEY']:
-            #Fails with soup2/3 conflict, run new process...
-            pro = userFile('.hidden')
-            loadfile = 'file://'+pro+"/index.html"
-            repeater = el.repeater
-            if not os.path.exists(pro):
-                os.mkdir(pro)
-            with open(os.path.join(pro,'base.data.js'), 'w') as outfile:
-                outfile.write("CALL=\""+repeater.callsign+"\"; "+
-                    "FREQ=\""+str(repeater.freq)+"\";"+
-                    "OFFSET=\""+str(repeater.offset)+"\";"+
-                    "MODE=\""+str(repeater.mode)+"\";"+
-                    "PL=\""+str(repeater.pl)+"\";"+
-                    "PLDECODE=\""+str(repeater.decode if hasattr(repeater,'decode') else "")+"\";"+
-                    "DISABLED="+('true' if repeater.isDown() else 'false')+";"+
-                    "URL=\""+str(repeater.url)+"\";");
-            subprocess.Popen(["python3", "HelpDialog.py"])
-            #help = HelpDialog(self, el.repeater)
-            #help.run()
-            #help.destroy()
-        else:
+        pro = pathlib.Path(userFile('.hidden'))
+        if not (pro / 'index.html').exists():
             self.gopremium()
+            return
+        rpt = el.repeater
+        values = {'CALL': rpt.callsign, 'FREQ': str(rpt.freq), 'OFFSET': str(rpt.offset),
+                  'MODE': str(rpt.mode), 'PL': str(rpt.pl), 'PLDECODE': str(getattr(rpt, 'decode', '')),
+                  'DISABLED': bool(rpt.isDown()), 'URL': str(rpt.url)}
+        (pro / 'base.data.js').write_text('\n'.join(f'{key}={json.dumps(value)};' for key, value in values.items()))
+        subprocess.Popen([sys.executable, asset('HelpDialog.py')])
 
-    def on_button_press(self, osm, event):
-        state = event.get_state()
-        lat,lon = self.osm.get_event_location(event).get_degrees()
-        #print('clicked %s,%s' % (lat,lon))
-        near = 999999
-        nearest = None
-        self.allrepeaters = sorted(self.allrepeaters, key = lambda repeater : repeater.distance(lat,lon))
 
-        left    = event.button == 1 and state == 0
-        middle  = event.button == 2 or (event.button == 1 and state & Gdk.ModifierType.SHIFT_MASK)
-        right   = event.button == 3 or (event.button == 1 and state & Gdk.ModifierType.CONTROL_MASK)
-
-        #work around binding bug with invalid variable name
-        GDK_2BUTTON_PRESS = getattr(Gdk.EventType, "2BUTTON_PRESS")
-        GDK_3BUTTON_PRESS = getattr(Gdk.EventType, "3BUTTON_PRESS")
-
-        closeRepeater = None
-        closeDistance = 9E99
-        if left:
-            for item in self.allrepeaters:
-                distance = item.distance(lat,lon)
-                if distance < closeDistance:
-                    closeDistance = distance
-                    closeRepeater = item
-            #print(closeDistance)
-            #print(closeRepeater)
-            if closeRepeater and closeDistance < 10:
-                # event.x / event.y are already pixel coords within the map widget
-                #self._info_label_x = int(event.x)
-                #self._info_label_y = int(event.y)
-                point = osmgpsmap.MapPoint.new_degrees(closeRepeater.lat, closeRepeater.lon)
-                x, y = self.osm.convert_geographic_to_screen(point)
-                self._info_label_x = x
-                self._info_label_y = y
-                #Is it close - in pixels?
-                if abs(event.x-x) < 15 and abs(event.y-y) < 15:
-                    markup = (
-                        f"<b>{closeRepeater.callsign}</b>  {closeRepeater.freq} MHz"
-                    )
-                    self.map_info_label.set_markup(markup)
-                    self.map_info_label.show()
-                else:
-                    self.map_info_label.hide()
-            else:
-                self.map_info_label.hide()
 
     def playRTLSDR(self, mhz):
-        if self.rtllistener:
-            self.rtllistener.stop()
-            sleep(1)
-        # -l 450 is higher squelch.
-        cmd = 'rtl_fm -M fm -f '+str(mhz)+'M -s 200k -r 24k -l 50 | play -r 24k -t raw -e s -b 16 -c 1 -V1 -'
-        print(cmd)
-        self.rtllistener = RTLSDRRun( cmd )
-        self.rtllistener.start()
+        self.rtllistener = RTLSDRRun(mhz)
+
             
-    def cleanup(self, obj):
-        stateObj = {
-            'lat': self.renderedLat, 
-            'lon': self.renderedLon,
-            'zoom': self.osm.props.zoom
-        }
+    def cleanup(self, *args):
+        if self._closing:
+            return False
+        self._closing = True
+        self._stop_radio()
+        for source in [self._map_change_id, getattr(self, '_download_poll_id', 0)]:
+            if source:
+                GLib.source_remove(source)
+        for source in self._timers:
+            if GLib.MainContext.default().find_source_by_id(source):
+                GLib.source_remove(source)
+        for window in list(self._elevation_windows):
+            window.close()
+        self.settingsDialog.close()
+        self.map.close()
+        state = {'lat': self.map.viewport.props.latitude,
+                 'lon': self.map.viewport.props.longitude,
+                 'zoom': self.map.viewport.get_zoom_level()}
         with open(userFile('lastPosition.json'), 'w') as outfile:
-            outfile.write(json.dumps(stateObj))
-        if self.rtllistener:
-            self.rtllistener.stop()
-        Gtk.main_quit()
+            json.dump(state, outfile)
+        return False
+
     
 
-if __name__ == "__main__":
-    u = UI()
-    u.show_all()
-    u.setViews()
-    if os.name == "nt": Gdk.threads_enter()
-    Gtk.main()
-    if os.name == "nt": Gdk.threads_leave()
+class RepeaterApplication(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id='com.hearham.repeaterstart')
+        GLib.set_prgname('repeaterstart')
+        GLib.set_application_name('Repeater-START')
+
+    def do_activate(self):
+        window = self.get_active_window()
+        if window is None:
+            window = UI(self)
+        window.present()
+
+
+if __name__ == '__main__':
+    sys.exit(RepeaterApplication().run(sys.argv))

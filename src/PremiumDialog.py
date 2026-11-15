@@ -1,7 +1,10 @@
 import gi
 import os
+import io
+import webbrowser
+from GtkSupport import install_css
 from RepeaterStartCommon import userFile
-gi.require_version("Gtk", "3.0")
+gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gdk, GdkPixbuf, Pango
 
 CSS = """
@@ -115,17 +118,7 @@ CSS = """
 
 
 def _apply_css():
-    provider = Gtk.CssProvider()
-    try:
-        provider.load_from_data(CSS)#new
-    except TypeError:
-        provider.load_from_data(CSS.encode("utf-8"))#old
-
-    Gtk.StyleContext.add_provider_for_screen(
-        Gdk.Screen.get_default(),
-        provider,
-        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-    )
+    install_css(CSS)
 
 
 def _add_class(widget, *names):
@@ -138,41 +131,36 @@ class PremiumDialog(Gtk.Dialog):
     """
     Usage:
         dlg = PremiumDialog(parent_window)
-        response = dlg.run()
-        if response == Gtk.ResponseType.OK:
-            key = dlg.get_license_key()
-        dlg.destroy()
+        dlg.connect('response', on_response)
+        dlg.present()
     """
 
     def __init__(self, parent):
         super().__init__(transient_for=parent, modal=True)
         self.set_title("HearHam Premium")
         self.set_resizable(False)
-        self.set_border_width(0)
         self.set_default_size(400, -1)
         self.get_style_context().add_class("premium-dialog")
 
         # Remove default dialog button area — we build our own
-        self.get_action_area().set_visible(False)
         # Remove default content padding
         content = self.get_content_area()
-        content.set_border_width(0)
         content.set_spacing(0)
         firstline = True
         self.price = '?'
         self.features = []
-        with open(userFile('promo.txt')) as infile:
+        promo = userFile('promo.txt')
+        with open(promo) if os.path.exists(promo) else io.StringIO('See dashboard\nRadio setup help and premium repeater features') as infile:
             for line in infile:
                 if firstline:
                     self.price = line.strip()
                     firstline = False
                 else:
                     self.features.append(line.strip())
-        content.add(self._build_header())
-        content.add(self._build_features())
-        content.add(self._build_key_section())
+        content.append(self._build_header())
+        content.append(self._build_features())
+        content.append(self._build_key_section())
         _apply_css()
-        self.show_all()
 
     def _build_header(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -180,7 +168,7 @@ class PremiumDialog(Gtk.Dialog):
         title = Gtk.Label(label="📡  Unlock RepeaterSTART Premium!")
         title.set_halign(Gtk.Align.START)
         _add_class(title, "premium-title")
-        box.pack_start(title, False, False, 0)
+        box.append(title)
         return box
 
     def _build_features(self):
@@ -192,13 +180,13 @@ class PremiumDialog(Gtk.Dialog):
             _add_class(check, "check-icon")
             check.set_valign(Gtk.Align.START)
             label = Gtk.Label(label=text)
-            label.set_line_wrap(True)
+            label.set_wrap(True)
             label.set_max_width_chars(42)
             label.set_xalign(0)
             _add_class(label, "feature-text")
-            row.pack_start(check, False, False, 0)
-            row.pack_start(label, True, True, 0)
-            outer.pack_start(row, False, False, 0)
+            row.append(check)
+            row.append(label)
+            outer.append(row)
 
         # Price badge + purchase button side by side
         bottom_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -211,17 +199,17 @@ class PremiumDialog(Gtk.Dialog):
         period = Gtk.Label(label=" / month · billed annually")
         _add_class(period, "price-period")
         period.set_valign(Gtk.Align.CENTER)
-        price_row.pack_start(amount, False, False, 0)
-        price_row.pack_start(period, False, False, 0)
+        price_row.append(amount)
+        price_row.append(period)
 
         purchase_btn = Gtk.Button(label="🛒  Purchase on Dashboard")
         _add_class(purchase_btn, "btn-purchase")
         purchase_btn.set_valign(Gtk.Align.CENTER)
         purchase_btn.connect("clicked", self._on_purchase_clicked)
 
-        bottom_row.pack_start(price_row, False, False, 0)
-        bottom_row.pack_start(purchase_btn, False, False, 0)
-        outer.pack_start(bottom_row, False, False, 0)
+        bottom_row.append(price_row)
+        bottom_row.append(purchase_btn)
+        outer.append(bottom_row)
 
         return outer
 
@@ -232,14 +220,14 @@ class PremiumDialog(Gtk.Dialog):
         key_label = Gtk.Label(label="LICENSE KEY")
         key_label.set_halign(Gtk.Align.START)
         _add_class(key_label, "key-label")
-        outer.pack_start(key_label, False, False, 0)
+        outer.append(key_label)
 
         self._key_entry = Gtk.Entry()
         self._key_entry.set_placeholder_text("ENTER-HERE")
         self._key_entry.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
         _add_class(self._key_entry, "key-entry")
         self._key_entry.connect("activate", lambda _: self.response(Gtk.ResponseType.OK))
-        outer.pack_start(self._key_entry, False, False, 0)
+        outer.append(self._key_entry)
 
         btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         btn_row.set_margin_top(4)
@@ -247,18 +235,18 @@ class PremiumDialog(Gtk.Dialog):
         cancel_btn = Gtk.Button(label="CANCEL")
         _add_class(cancel_btn, "btn-cancel")
         cancel_btn.connect("clicked", lambda _: self.response(Gtk.ResponseType.CANCEL))
-        btn_row.pack_start(cancel_btn, True, True, 0)
+        btn_row.append(cancel_btn)
 
         activate_btn = Gtk.Button(label="ACTIVATE LICENSE")
         _add_class(activate_btn, "btn-activate")
         activate_btn.connect("clicked", lambda _: self.response(Gtk.ResponseType.OK))
-        btn_row.pack_start(activate_btn, True, True, 0)
+        btn_row.append(activate_btn)
 
-        outer.pack_start(btn_row, False, False, 0)
+        outer.append(btn_row)
         return outer
 
     def _on_purchase_clicked(self, _btn):
-        os.system('xdg-open "https://hearham.com/gopremium"')
+        webbrowser.open('https://hearham.com/gopremium')
 
     def get_license_key(self):
         """Return the text typed into the license key field."""
