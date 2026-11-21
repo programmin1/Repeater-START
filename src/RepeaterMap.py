@@ -52,7 +52,8 @@ class RepeaterMap(Shumate.SimpleMap):
             'https://www.mapbox.com/about/maps/', 0, 19, 256,
             Shumate.MapProjection.MERCATOR, self.downloader)
         self.set_map_source(self.source)
-        self.set_show_zoom_buttons(True)
+        self.set_show_zoom_buttons(False)
+        self.get_license().set_visible(False) #Shown in overlay
         self.markers = Shumate.MarkerLayer.new(self.viewport)
         self.add_overlay_layer(self.markers)
         self._repeaters = []
@@ -83,6 +84,12 @@ class RepeaterMap(Shumate.SimpleMap):
             self.set_zoom(self.viewport.get_zoom_level() + (-1 if key == Gdk.KEY_minus else 1))
             return True
         return False
+
+    def zoom_in(self, widget):
+        self.set_zoom(self.viewport.get_zoom_level() + 1)
+
+    def zoom_out(self, widget):
+            self.set_zoom(self.viewport.get_zoom_level() - 1)
 
     def _size_tick(self, widget, clock):
         size = (self.get_width(), self.get_height())

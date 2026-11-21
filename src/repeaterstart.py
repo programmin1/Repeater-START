@@ -257,6 +257,9 @@ class UI(Gtk.ApplicationWindow):
                 background: transparent; border: none; box-shadow: none; }
             .repeater-title { font-size: 1.2em; font-weight: bold; }
             .map-crosshair { font-size: 24px; color: #303030; }
+            .credits { color: blue; font-size: 12px; outline:none; padding:2px; margin:0px;}
+            .gopremium { background:rgb(255, 255, 204); font: Ubuntu Bold 12; font-weight: bold; color: rgb(230, 0, 0); outline: none;
+                padding:3px; margin:0px; border-width:0px; border-radius:0px;}
         """)
         self.settingsDialog = SettingsDialog(self)
         self.settingsDialog.getShown()
@@ -285,20 +288,40 @@ class UI(Gtk.ApplicationWindow):
         crosshair.add_css_class('map-crosshair')
         crosshair.set_can_target(False)
         overlay.add_overlay(crosshair)
+
+        zoom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0,
+                        halign=Gtk.Align.START, valign=Gtk.Align.START,
+                        margin_start=5, margin_top=5)
+        zoom_box.add_css_class('osd')
+        zin = Gtk.Button(icon_name='zoom-in-symbolic')
+        zout = Gtk.Button(icon_name='zoom-out-symbolic')
+        zin.connect('clicked', self.map.zoom_in)
+        zout.connect('clicked', self.map.zoom_out)
+        zoom_box.append(zout)
+        zoom_box.append(zin)
+        overlay.add_overlay(zoom_box)
+
         logo = Gtk.Image.new_from_file(asset('mapbox.svg'))
         logo.set_pixel_size(80)
         logo.set_halign(Gtk.Align.START)
         logo.set_valign(Gtk.Align.END)
-        logo.set_can_target(False)
         margins(logo, 6)
+        logo.set_margin_bottom(32)
+        logo.set_can_target(False)
         overlay.add_overlay(logo)
-        feedback = Gtk.LinkButton(uri='https://www.mapbox.com/map-feedback/', label='Improve this map')
-        feedback.set_halign(Gtk.Align.START)
-        feedback.set_valign(Gtk.Align.START)
-        overlay.add_overlay(feedback)
+
+        credits = Gtk.Box()
+        credits.set_halign(Gtk.Align.END)
+        credits.set_valign(Gtk.Align.END)
+        credits.append(self.creditLink('https://www.mapbox.com/about/maps/', '(c) Mapbox'))
+        credits.append(self.creditLink('http://www.openstreetmap.org/about/', '(c) Openstreetmap'))
+        credits.append(self.creditLink('https://www.mapbox.com/map-feedback/', 'Improve this map'))
+        overlay.add_overlay(credits)
+
         if 'licenseKEY' not in self.settingsDialog.config['DownloadOptions']:
             premium = Gtk.Button(label=__('Go premium!'), halign=Gtk.Align.END, valign=Gtk.Align.START)
             premium.connect('clicked', self.gopremium)
+            premium.add_css_class('gopremium')
             overlay.add_overlay(premium)
         self.listbox = Gtk.ListBox()
         self.listbox.set_activate_on_single_click(False)
@@ -344,6 +367,12 @@ class UI(Gtk.ApplicationWindow):
             self._timers.append(GLib.timeout_add_seconds(600, self._periodic_download))
             GLib.idle_add(self._diagnostics_prompt)
             GLib.idle_add(self.updateMessage)
+
+    def creditLink(self, url, label):
+        link=Gtk.LinkButton(uri=url, label=label)
+        link.add_css_class('credits')
+        margins(link,0)
+        return link
 
     def _window_key(self, controller, key, code, state):
         if key == Gdk.KEY_F11:
@@ -605,15 +634,6 @@ class UI(Gtk.ApplicationWindow):
         self.refreshListing()
         return False
 
-        
-        #print('DISPLAYNODES took '+str(time.time()-start))
-    
-    def credit_mapbox(self, obj, obj2):
-        webbrowser.open('https://www.mapbox.com/about/maps/')
-    def credit_osm(self, obj, obj2):
-        webbrowser.open('http://www.openstreetmap.org/about/')
-    def improvement_link(self, obj, obj2):
-        webbrowser.open('https://www.mapbox.com/map-feedback/')
     
     def addRepeaterIcon(self, repeater, minimum, maximum):
         icon = self.towerDownPic if repeater.isDown() else self.towerPic
@@ -818,14 +838,27 @@ class UI(Gtk.ApplicationWindow):
             caption += f' · Node {node}'
         title.set_markup(('<s>' + GLib.markup_escape_text(caption) + '</s>') if repeater.isDown() else GLib.markup_escape_text(caption))
         text.append(title)
-        details = Gtk.Label(label=f'PL {repeater.pl}, Offset {repeater.offset} MHz · {repeater.status}', xalign=0, ellipsize=Pango.EllipsizeMode.END)
-        text.append(details)
-        description = Gtk.Label(label=str(getattr(repeater, 'description', '')), xalign=0, ellipsize=Pango.EllipsizeMode.END)
-        text.append(description)
         try:
             linked = int(repeater.status)
         except (TypeError, ValueError):
             linked = 0
+        if repeater.status == 0:
+            irlp = 'OFFLINE'
+        elif type(repeater.status) != int and not repeater.status.isnumeric():
+            irlp = repeater.status
+        else:
+            irlp = ''
+        if float(repeater.freq) == 0:
+            #Reflecter info
+            details = Gtk.Label(label=repeater.city, xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        else:
+            if repeater.offset>0:
+                details = Gtk.Label(label=f'PL {repeater.pl}, Offset +{repeater.offset} MHz {irlp}', xalign=0, ellipsize=Pango.EllipsizeMode.END)
+            else:
+                details = Gtk.Label(label=f'PL {repeater.pl}, Offset {repeater.offset} MHz {irlp}', xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        text.append(details)
+        description = Gtk.Label(label=str(getattr(repeater, 'description', '')), xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        text.append(description)
         if linked > 1:
             link = Gtk.Button(label=f'Linked to {linked}')
             link.connect('clicked', self.goLinkIRLP)
@@ -931,7 +964,6 @@ class UI(Gtk.ApplicationWindow):
             return False
         return True
 
-
     def goLinkIRLP(self, btn):
         label = btn.get_label()
         print(label)
@@ -939,7 +971,6 @@ class UI(Gtk.ApplicationWindow):
         for item in self.allrepeaters:
             if item.node == label:
                 self.map.set_center(item.lat, item.lon)
-
         
     def helppro(self, el):
         pro = pathlib.Path(userFile('.hidden'))
