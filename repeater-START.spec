@@ -1,12 +1,12 @@
 Name:           repeaterSTART
-Version:        1.2.0
+Version:        1.99.0
 Release:        1%{?dist}
 Summary:        Repeater-START (Showing The Amateur-radio Repeaters Tool) is a tool to find local repeaters on a topo map. Works online or offline.
 License:        GPL-2.0-or-later
 URL:            https://hearham.com/repeaters
 BuildArch:      noarch
 
-Requires:       python3, python3-gobject, osm-gps-map-gobject, geoclue2-libs
+Requires:       python3, python3-gobject, libshumate, geoclue2-libs
 
 %description
 Repeater-START - Showing The Amateur Repeaters Tool.

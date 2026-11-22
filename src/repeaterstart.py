@@ -585,10 +585,7 @@ class UI(Gtk.ApplicationWindow):
             pass
         return False
 
-    
-        
-
-
+    #TODO slow, but <1 second on a fast computer. Should not be thread for refreshListing
     def displayNodes(self):
         if self._closing:
             return False
@@ -844,7 +841,7 @@ class UI(Gtk.ApplicationWindow):
             linked = 0
         if repeater.status == 0:
             irlp = 'OFFLINE'
-        elif type(repeater.status) != int and not repeater.status.isnumeric():
+        elif type(repeater.status) == str and not repeater.status.isnumeric():
             irlp = repeater.status
         else:
             irlp = ''
@@ -852,7 +849,7 @@ class UI(Gtk.ApplicationWindow):
             #Reflecter info
             details = Gtk.Label(label=repeater.city, xalign=0, ellipsize=Pango.EllipsizeMode.END)
         else:
-            if repeater.offset>0:
+            if float(repeater.offset)>0:
                 details = Gtk.Label(label=f'PL {repeater.pl}, Offset +{repeater.offset} MHz {irlp}', xalign=0, ellipsize=Pango.EllipsizeMode.END)
             else:
                 details = Gtk.Label(label=f'PL {repeater.pl}, Offset {repeater.offset} MHz {irlp}', xalign=0, ellipsize=Pango.EllipsizeMode.END)
