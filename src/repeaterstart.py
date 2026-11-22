@@ -723,9 +723,9 @@ class UI(Gtk.ApplicationWindow):
         filename = userFile('repeaters.json')
         if os.path.exists(filename):
             changed = datetime.datetime.fromtimestamp(os.path.getmtime(filename)).strftime('%Y-%m-%d %H:%M')
-        message(self, f'Repeater-START {self.version}\nGTK4 / libshumate\n'
+        message(self, f'Repeater-START {self.version}\nShowing The Amateur Repeaters Tool - The only open-source Linux desktop repeater app utilizing the open-data repeater database.\nNow with GTK4, libshumate mapping library.\n'
                 f'Repeater data updated: {changed}\nhttps://hearham.com/repeaters\n'
-                'Support: contact@hearham.live', title=__('About'))
+                'For support/questions please use the Github issues or contact@hearham.live.', title=__('About'))
 
     
     def pref_clicked(self,button):

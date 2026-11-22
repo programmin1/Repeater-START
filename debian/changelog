@@ -1,3 +1,8 @@
+repeater-start (1.99) beta; urgency=medium
+  * GTK4 and new Map library bring faster and better interaction.
+  * Print ability and toolbar in the premium step-by-step instructions dialog.
+ -- Luke <luke@hearham.live>  Sat, 21 Nov 2026 21:10:00 -0800
+
 repeater-start (1.2.0) stable; urgency=medium
   * Elevation profile
   * Fixes to the search box to not freeze up the whole window.

@@ -12,6 +12,8 @@ Requires:       python3, python3-gobject, libshumate, geoclue2-libs
 Repeater-START - Showing The Amateur Repeaters Tool.
 This tool displays all the repeaters available through the repeater listing at https://hearham.com/repeaters
 Support for searching for a Maidenhead-grid-square coordinate, WhatThreeWords Position, a mountain or peak on Openstreetmap, repeater frequency/IRLP node, or finding your current location, is included.
+Elevation profile from center point to any nearby repeaters, is available while online.
+RTLSDR may be used to listen directly to the repeater frequency.
 
 %build
 # Nothing to compile - pure Python.
@@ -49,3 +51,5 @@ chmod 755 %{buildroot}%{_bindir}/%{name}
 %changelog
 * Fri Jul 03 2026 Luke
 - Initial Fedora/Red Hat build.
+* Sat Nov 21 2026 Luke
+- Beta of new build with GTK4, new mapping library.
